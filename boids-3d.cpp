@@ -18,9 +18,12 @@ using std::vector;
 
 GLuint vBuffer = 0;
 GLuint cubeProgram = 0;
-vector<GLuint> boidTexUnits = { 1, 2, 3 };
-vector<GLuint> rockTexUnits = { 4, 5, 6 };
+GLuint skyboxProgram = 0;
+GLuint texUnit = 0;
+GLuint skyboxTexUnit, skyboxTexName;
 
+const char* skyboxObjFilename = "./objects/sphere.obj";
+const char* skyboxTexFilename = "./textures/underwater.tga";
 vector<const char*> boidObjFilenames = { "./objects/fish/fish1.obj", "./objects/fish/fish2.obj", "./objects/fish/fish3.obj" };
 vector<const char*> boidTexFilenames = { "./textures/fish/fish1.tga", "./textures/fish/fish2.tga", "./textures/fish/fish3.tga" };
 vector<mat4> boidObjTransforms = { RotateY(-90.0f), mat4(), RotateY(90.0f) * RotateX(-90.0f) };
@@ -35,11 +38,13 @@ Camera camera((float) win_width / win_height, vec3(0, 0, 0), vec3(0, 0, -5));
 
 vector<dMesh> boid_meshes;
 vector<dMesh> rock_meshes;
-
-vec3 lightSource = vec3(1, 1, 0);
-
+vector<vec3> skybox_points, skybox_normals;
+vector<vec2> skybox_uvs;
+vector<int3> skybox_triangles;
 float cube_points[][3] = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} };
 int cube_faces[][4] = { {0, 1, 2, 3}, {2, 3, 4, 5}, {4, 5, 6, 7}, {6, 7, 0, 1}, {0, 3, 4, 7}, {1, 2, 5, 6} };
+
+vec3 lightSource = vec3(1, 1, 0);
 
 float rand_float(float min = 0, float max = 1) { return min + (float)rand() / (RAND_MAX / (max - min)); }
 vec3 rand_vec3(float min = -1, float max = 1) { return vec3(min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min))); }
@@ -59,7 +64,7 @@ const float BOID_SIZE_VARIANCE = 0.02f;
 const float ROCK_SIZE = 0.15f;
 const float ROCK_SIZE_VARIANCE = 0.075f;
 const float BOID_PERCEPTION = 0.3f;
-const float WALL_RANGE = 0.1f;
+const float WALL_RANGE = 0.2f;
 const float ALIGNMENT_WEIGHT = 1.0f;
 const float COHESION_WEIGHT = 1.0f;
 const float SEPARATION_WEIGHT = 1.0f;
@@ -67,7 +72,6 @@ const float SEPARATION_WEIGHT = 1.0f;
 const int STARTING_BOIDS = 150;
 const int STARTING_ROCKS = 200;
 
-const bool AVOID_WALLS = false;
 const bool DRAW_REF_VECTORS = false;
 
 bool running = true;
@@ -154,35 +158,36 @@ struct Boid {
 	}
 	vec3 Avoidance() {
 		p += v;
-		if (AVOID_WALLS) {
-			// Steer boids away from walls
-			if (p.x < -1 + WALL_RANGE)
-				return vec3(1 / (1 - p.x), 0.0f, 0.0f); // left wall
-			if (p.x > 1 - WALL_RANGE)
-				return vec3(1 / (-1 - p.x), 0.0f, 0.0f); // right wall
-			if (p.y > 1 - WALL_RANGE)
-				return vec3(0.0f, 1 / (-1 - p.y), 0.0f); // top wall
-			if (p.y < -1 + WALL_RANGE)
-				return vec3(0.0f, 1 / (1 - p.y), 0.0f); // bottom wall
-			if (p.z < -1 + WALL_RANGE)
-				return vec3(0.0f, 0.0f, 1 / (1 - p.z)); // front wall
-			if (p.z > 1 - WALL_RANGE)
-				return vec3(0.0f, 0.0f, 1 / (-1 - p.z)); // back wall
-		} else {
+		// Steer boids away from walls
+		/*
+		if (p.x < -1 + WALL_RANGE)
+			return vec3(1 / (1 - p.x), 0.0f, 0.0f); // left wall
+		if (p.x > 1 - WALL_RANGE)
+			return vec3(1 / (-1 - p.x), 0.0f, 0.0f); // right wall
+		if (p.y > 1 - WALL_RANGE)
+			return vec3(0.0f, 1 / (-1 - p.y), 0.0f); // top wall
+		*/
+		if (p.y < -1 + WALL_RANGE)
+			return vec3(0.0f, 1 / (1 - p.y), 0.0f); // bottom wall
+		/*
+		if (p.z < -1 + WALL_RANGE)
+			return vec3(0.0f, 0.0f, 1 / (1 - p.z)); // front wall
+		if (p.z > 1 - WALL_RANGE)
+			return vec3(0.0f, 0.0f, 1 / (-1 - p.z)); // back wall
+		*/
 			// Wrap boids around edges of screen
-			if (p.x > 1.0f)
-				p.x = -1.0f;
-			if (p.x < -1.0f)
-				p.x = 1.0f;
-			if (p.y > 1.0f)
-				p.y = -1.0f;
-			if (p.y < -1.0f)
-				p.y = 1.0f;
-			if (p.z > 1.0f)
-				p.z = -1.0f;
-			if (p.z < -1.0f)
-				p.z = 1.0f;
-		}
+		if (p.x > 1.0f)
+			p.x = -1.0f;
+		if (p.x < -1.0f)
+			p.x = 1.0f;
+		if (p.y > 1.0f)
+			p.y = -1.0f;
+		if (p.y < -1.0f)
+			p.y = 1.0f;
+		if (p.z > 1.0f)
+			p.z = -1.0f;
+		if (p.z < -1.0f)
+			p.z = 1.0f;
 		return vec3(0.0f);
 	}
 	void Run() {
@@ -250,6 +255,32 @@ const char* cubeFragShader = R"(
 	}
 )";
 
+const char* skyboxVertShader = R"(
+	#version 130
+	in vec3 point;
+	in vec2 uv;
+	out vec3 vPoint;
+	out vec2 vUv;
+	uniform mat4 persp;
+	uniform mat4 modelview;
+	void main() {
+		vPoint = (modelview * vec4(point, 1)).xyz;
+		gl_Position = persp*vec4(vPoint, 1);
+		vUv = uv;
+	}
+)";
+
+const char* skyboxFragShader = R"(
+	#version 130
+	in vec3 vPoint;
+	in vec2 vUv;
+	out vec4 pColor;
+	uniform sampler2D texImage;
+	void main() {
+		pColor = texture(texImage, vUv);
+	}
+)";
+
 void Resize(GLFWwindow* window, int width, int height) {
 	camera.Resize(win_width = width, win_height = height);
 	glViewport(0, 0, win_width, win_height);
@@ -294,9 +325,11 @@ void MouseWheel(GLFWwindow* w, double ignore, double spin) {
 void InitVertexBuffer() {
 	glGenBuffers(1, &vBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	size_t size = sizeof(cube_points);
+	size_t size = sizeof(cube_points) + skybox_points.size() * sizeof(vec3) + skybox_uvs.size() * sizeof(vec2);
 	glBufferData(GL_ARRAY_BUFFER, size, NULL, GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(cube_points), cube_points);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cube_points), skybox_points.size() * sizeof(vec3), &skybox_points[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cube_points) + (skybox_points.size() * sizeof(vec3)), (skybox_uvs.size() * sizeof(vec2)), &skybox_uvs[0]);
 }
 
 void InitSceneObjects() {
@@ -327,13 +360,23 @@ void DrawVectors() {
 
 void Display() {
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
+	glUseProgram(skyboxProgram);
+	VertexAttribPointer(skyboxProgram, "point", 3, 0, (void*)(sizeof(cube_points)));
+	VertexAttribPointer(skyboxProgram, "uv", 2, 0, (void*)(sizeof(cube_points) + (skybox_points.size() * sizeof(vec3))));
+	glActiveTexture(GL_TEXTURE0 + skyboxTexUnit);
+	glBindTexture(GL_TEXTURE_2D, skyboxTexName);
+	SetUniform(skyboxProgram, "texImage", (int)skyboxTexUnit);
+	mat4 modelview = camera.modelview * Translate(camera.GetTran()) * Scale(10.0f);
+	SetUniform(skyboxProgram, "persp", camera.persp);
+	SetUniform(skyboxProgram, "modelview", modelview);
+	glDrawElements(GL_TRIANGLES, 3 * skybox_triangles.size(), GL_UNSIGNED_INT, &skybox_triangles[0]);
+	// Draw cube
 	glUseProgram(cubeProgram);
-	glClearColor(0.188f, 0.333f, 0.447f, 1.); 
-	glClear(GL_COLOR_BUFFER_BIT);
+	//glClearColor(0.188f, 0.333f, 0.447f, 1.); 
+	//glClear(GL_COLOR_BUFFER_BIT);
+	VertexAttribPointer(cubeProgram, "point", 3, 0, (void*)0);
 	SetUniform(cubeProgram, "persp", camera.persp);
 	SetUniform(cubeProgram, "modelview", camera.modelview);
-	// Draw cube
-	VertexAttribPointer(cubeProgram, "point", 3, 0, (void*)0);
 	for (int i = 0; i < 6; i++) {
 		glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, cube_faces[i]);
 	}
@@ -355,7 +398,7 @@ void Display() {
 }
 
 int main() {
-	srand((int) time(NULL));
+	srand((int)time(NULL));
 	if (!glfwInit())
 		return 1;
 	GLFWwindow* window = glfwCreateWindow(win_width, win_height, "Boids 3D", NULL, NULL);
@@ -369,14 +412,25 @@ int main() {
 	PrintGLErrors();
 	if (!(cubeProgram = LinkProgramViaCode(&cubeVertShader, &cubeFragShader)))
 		return 1;
+	if (!(skyboxProgram = LinkProgramViaCode(&skyboxVertShader, &skyboxFragShader)))
+		return 1;
+	if (!(ReadAsciiObj(skyboxObjFilename, skybox_points, skybox_triangles, &skybox_normals, &skybox_uvs))) {
+		fprintf(stderr, "Error reading skybox obj\n");
+		return 1;
+	}
+	skyboxTexUnit = ++texUnit;
+	skyboxTexName = LoadTexture(skyboxTexFilename, skyboxTexUnit);
+	printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", skyboxObjFilename, skybox_points.size(), skybox_normals.size(), skybox_uvs.size(), skybox_triangles.size());
 	for (size_t i = 0; i < boidObjFilenames.size(); i++) {
 		boid_meshes.push_back(dMesh());
-		boid_meshes[i].Read((char*)boidObjFilenames[i], (char*)boidTexFilenames[i], boidTexUnits[i], &boidObjTransforms[i]);
+		texUnit++;
+		boid_meshes[i].Read((char*)boidObjFilenames[i], (char*)boidTexFilenames[i], texUnit, &boidObjTransforms[i]);
 		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", boidObjFilenames[i], boid_meshes[i].points.size(), boid_meshes[i].normals.size(), boid_meshes[i].uvs.size(), boid_meshes[i].triangles.size());
 	}
 	for (size_t i = 0; i < rockObjFilenames.size(); i++) {
 		rock_meshes.push_back(dMesh());
-		rock_meshes[i].Read((char*)rockObjFilenames[i], (char*)rockTexFilenames[i], rockTexUnits[i]);
+		texUnit++;
+		rock_meshes[i].Read((char*)rockObjFilenames[i], (char*)rockTexFilenames[i], texUnit);
 		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", rockObjFilenames[i], rock_meshes[i].points.size(), rock_meshes[i].normals.size(), rock_meshes[i].uvs.size(), rock_meshes[i].triangles.size());
 	}
 	InitSceneObjects();
@@ -395,6 +449,7 @@ int main() {
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glDeleteBuffers(1, &vBuffer);
+	glDeleteBuffers(1, &skyboxTexName);
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
