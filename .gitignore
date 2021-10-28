@@ -1,0 +1,11 @@
+.vs/
+class-resources/
+Debug/
+Release/
+x64/
+*.sln
+*.vcxproj
+*.filters
+*.user
+*.swp
+*.un~
