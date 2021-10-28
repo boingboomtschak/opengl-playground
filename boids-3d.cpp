@@ -18,15 +18,11 @@ using std::vector;
 
 GLuint vBuffer = 0;
 GLuint cubeProgram = 0;
-GLuint skyboxProgram = 0;
 GLuint texUnit = 0;
-GLuint skyboxTexUnit, skyboxTexName;
 
-const char* skyboxObjFilename = "./objects/sphere.obj";
-const char* skyboxTexFilename = "./textures/underwater.tga";
-vector<const char*> boidObjFilenames = { "./objects/fish/fish1.obj", "./objects/fish/fish2.obj", "./objects/fish/fish3.obj" };
-vector<const char*> boidTexFilenames = { "./textures/fish/fish1.tga", "./textures/fish/fish2.tga", "./textures/fish/fish3.tga" };
-vector<mat4> boidObjTransforms = { RotateY(-90.0f), mat4(), RotateY(90.0f) * RotateX(-90.0f) };
+vector<const char*> boidObjFilenames = { "./objects/fish/fish1.obj", "./objects/fish/fish2.obj", "./objects/fish/fish3.obj", "./objects/fish/fish4.obj" };
+vector<const char*> boidTexFilenames = { "./textures/fish/fish1.tga", "./textures/fish/fish2.tga", "./textures/fish/fish3.tga", "./textures/fish/fish4.tga" };
+vector<mat4> boidObjTransforms = { RotateY(-90.0f), mat4(), RotateY(90.0f) * RotateX(-90.0f), mat4() };
 vector<const char*> rockObjFilenames = { "./objects/rock/rock1.obj", "./objects/rock/rock2.obj", "./objects/rock/rock3.obj"};
 vector<const char*> rockTexFilenames = { "./textures/rock/rock1.tga", "./textures/rock/rock2.tga", "./textures/rock/rock3.tga" };
 vector<const char*> rockNormFilenames = { "./textures/rock/rock1_normal.tga", "./textures/rock/rock2_normal.tga", "./textures/rock/rock3_normal.tga" };
@@ -38,9 +34,6 @@ Camera camera((float) win_width / win_height, vec3(0, 0, 0), vec3(0, 0, -5));
 
 vector<dMesh> boid_meshes;
 vector<dMesh> rock_meshes;
-vector<vec3> skybox_points, skybox_normals;
-vector<vec2> skybox_uvs;
-vector<int3> skybox_triangles;
 float cube_points[][3] = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} };
 int cube_faces[][4] = { {0, 1, 2, 3}, {2, 3, 4, 5}, {4, 5, 6, 7}, {6, 7, 0, 1}, {0, 3, 4, 7}, {1, 2, 5, 6} };
 
@@ -59,7 +52,7 @@ vec3 XVec(vec3 v, mat4 m) { vec4 x = m * vec4(v); return .1f * vec3(x.x, x.y, x.
 
 
 const float BOID_SPEED = 0.005f;
-const float BOID_SIZE = 0.07f;
+const float BOID_SIZE = 0.06f;
 const float BOID_SIZE_VARIANCE = 0.02f;
 const float ROCK_SIZE = 0.15f;
 const float ROCK_SIZE_VARIANCE = 0.075f;
@@ -164,9 +157,9 @@ struct Boid {
 			return vec3(1 / (1 - p.x), 0.0f, 0.0f); // left wall
 		if (p.x > 1 - WALL_RANGE)
 			return vec3(1 / (-1 - p.x), 0.0f, 0.0f); // right wall
+		*/
 		if (p.y > 1 - WALL_RANGE)
 			return vec3(0.0f, 1 / (-1 - p.y), 0.0f); // top wall
-		*/
 		if (p.y < -1 + WALL_RANGE)
 			return vec3(0.0f, 1 / (1 - p.y), 0.0f); // bottom wall
 		/*
@@ -255,32 +248,6 @@ const char* cubeFragShader = R"(
 	}
 )";
 
-const char* skyboxVertShader = R"(
-	#version 130
-	in vec3 point;
-	in vec2 uv;
-	out vec3 vPoint;
-	out vec2 vUv;
-	uniform mat4 persp;
-	uniform mat4 modelview;
-	void main() {
-		vPoint = (modelview * vec4(point, 1)).xyz;
-		gl_Position = persp*vec4(vPoint, 1);
-		vUv = uv;
-	}
-)";
-
-const char* skyboxFragShader = R"(
-	#version 130
-	in vec3 vPoint;
-	in vec2 vUv;
-	out vec4 pColor;
-	uniform sampler2D texImage;
-	void main() {
-		pColor = texture(texImage, vUv);
-	}
-)";
-
 void Resize(GLFWwindow* window, int width, int height) {
 	camera.Resize(win_width = width, win_height = height);
 	glViewport(0, 0, win_width, win_height);
@@ -325,11 +292,9 @@ void MouseWheel(GLFWwindow* w, double ignore, double spin) {
 void InitVertexBuffer() {
 	glGenBuffers(1, &vBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	size_t size = sizeof(cube_points) + skybox_points.size() * sizeof(vec3) + skybox_uvs.size() * sizeof(vec2);
+	size_t size = sizeof(cube_points);
 	glBufferData(GL_ARRAY_BUFFER, size, NULL, GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(cube_points), cube_points);
-	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cube_points), skybox_points.size() * sizeof(vec3), &skybox_points[0]);
-	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cube_points) + (skybox_points.size() * sizeof(vec3)), (skybox_uvs.size() * sizeof(vec2)), &skybox_uvs[0]);
 }
 
 void InitSceneObjects() {
@@ -359,21 +324,13 @@ void DrawVectors() {
 }
 
 void Display() {
-	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	glUseProgram(skyboxProgram);
-	VertexAttribPointer(skyboxProgram, "point", 3, 0, (void*)(sizeof(cube_points)));
-	VertexAttribPointer(skyboxProgram, "uv", 2, 0, (void*)(sizeof(cube_points) + (skybox_points.size() * sizeof(vec3))));
-	glActiveTexture(GL_TEXTURE0 + skyboxTexUnit);
-	glBindTexture(GL_TEXTURE_2D, skyboxTexName);
-	SetUniform(skyboxProgram, "texImage", (int)skyboxTexUnit);
-	mat4 modelview = camera.modelview * Translate(camera.GetTran()) * Scale(10.0f);
-	SetUniform(skyboxProgram, "persp", camera.persp);
-	SetUniform(skyboxProgram, "modelview", modelview);
-	glDrawElements(GL_TRIANGLES, 3 * skybox_triangles.size(), GL_UNSIGNED_INT, &skybox_triangles[0]);
+	glClearColor(0.188f, 0.333f, 0.447f, 1.); 
+	glClear(GL_COLOR_BUFFER_BIT);
+	glClearColor(0.3f, 0.3f, 0.4f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 	// Draw cube
 	glUseProgram(cubeProgram);
-	//glClearColor(0.188f, 0.333f, 0.447f, 1.); 
-	//glClear(GL_COLOR_BUFFER_BIT);
+	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
 	VertexAttribPointer(cubeProgram, "point", 3, 0, (void*)0);
 	SetUniform(cubeProgram, "persp", camera.persp);
 	SetUniform(cubeProgram, "modelview", camera.modelview);
@@ -412,15 +369,6 @@ int main() {
 	PrintGLErrors();
 	if (!(cubeProgram = LinkProgramViaCode(&cubeVertShader, &cubeFragShader)))
 		return 1;
-	if (!(skyboxProgram = LinkProgramViaCode(&skyboxVertShader, &skyboxFragShader)))
-		return 1;
-	if (!(ReadAsciiObj(skyboxObjFilename, skybox_points, skybox_triangles, &skybox_normals, &skybox_uvs))) {
-		fprintf(stderr, "Error reading skybox obj\n");
-		return 1;
-	}
-	skyboxTexUnit = ++texUnit;
-	skyboxTexName = LoadTexture(skyboxTexFilename, skyboxTexUnit);
-	printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", skyboxObjFilename, skybox_points.size(), skybox_normals.size(), skybox_uvs.size(), skybox_triangles.size());
 	for (size_t i = 0; i < boidObjFilenames.size(); i++) {
 		boid_meshes.push_back(dMesh());
 		texUnit++;
@@ -449,7 +397,6 @@ int main() {
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glDeleteBuffers(1, &vBuffer);
-	glDeleteBuffers(1, &skyboxTexName);
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
