@@ -18,22 +18,23 @@ using std::vector;
 
 GLuint vBuffer = 0;
 GLuint cubeProgram = 0;
-GLuint boidTexUnit = 1; 
-GLuint rockTexUnit = 2; 
+vector<GLuint> boidTexUnits = { 1, 2, 3 };
+vector<GLuint> rockTexUnits = { 4, 5, 6 };
 
-const char *boidObjFilename  = "./objects/tuna.obj";
-const char *boidTexFilename  = "./textures/tuna.tga";
-const char* rockObjFilename  = "./objects/rock.obj";
-const char* rockTexFilename  = "./textures/rock.tga";
-const char* rockNormFilename = "./textures/rock_normal.tga";
+vector<const char*> boidObjFilenames = { "./objects/fish/fish1.obj", "./objects/fish/fish2.obj", "./objects/fish/fish3.obj" };
+vector<const char*> boidTexFilenames = { "./textures/fish/fish1.tga", "./textures/fish/fish2.tga", "./textures/fish/fish3.tga" };
+vector<mat4> boidObjTransforms = { RotateY(-90.0f), mat4(), RotateY(90.0f) * RotateX(-90.0f) };
+vector<const char*> rockObjFilenames = { "./objects/rock/rock1.obj", "./objects/rock/rock2.obj", "./objects/rock/rock3.obj"};
+vector<const char*> rockTexFilenames = { "./textures/rock/rock1.tga", "./textures/rock/rock2.tga", "./textures/rock/rock3.tga" };
+vector<const char*> rockNormFilenames = { "./textures/rock/rock1_normal.tga", "./textures/rock/rock2_normal.tga", "./textures/rock/rock3_normal.tga" };
 
 int win_width = 800;
 int win_height = 800;
 
 Camera camera((float) win_width / win_height, vec3(0, 0, 0), vec3(0, 0, -5));
 
-dMesh boid_mesh;
-dMesh rock_mesh;
+vector<dMesh> boid_meshes;
+vector<dMesh> rock_meshes;
 
 vec3 lightSource = vec3(1, 1, 0);
 
@@ -78,16 +79,20 @@ vector<Rock> rocks;
 
 struct Boid {
 	vec3 p, v; // position and velocity vector
-	vector<int> nb;
+	vector<int> nb, _nb; // neighbors, bucket for different meshed neighbors
+	int mesh;
 	float size = BOID_SIZE + (rand_float(-1, 1) * BOID_SIZE_VARIANCE);
 	Boid(vec3 xy, vec3 nv) {
-		p = xy; v = nv; 
+		p = xy, v = nv, mesh = rand() % boidObjFilenames.size(); 
 	}
 	void FindNeighbors() {
 		for (size_t i = 0; i < flock.size(); i++) {
 			float d = dist(p, flock[i].p);
 			if (&flock[i] != this && d < BOID_PERCEPTION && d > 0) {
-				nb.push_back(i);
+				if (mesh == flock[i].mesh)
+					nb.push_back(i);
+				else
+					_nb.push_back(i);
 			}
 		}
 	}
@@ -125,6 +130,10 @@ struct Boid {
 		}
 	}
 	vec3 Separation() {
+		// Include neighbors without same mesh
+		for (size_t i = 0; i < _nb.size(); i++)
+			nb.push_back(_nb[i]);
+		_nb.clear();
 		vec3 cv = vec3(0.0f);
 		float nc = 0; 
 		for (size_t i = 0; i < nb.size(); i++) { 
@@ -189,7 +198,7 @@ struct Boid {
 		nb.clear(); 
 	}
 	void Draw() {
-		boid_mesh.PreDisplay();
+		boid_meshes[mesh].PreDisplay();
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_DEPTH_TEST);
@@ -198,18 +207,19 @@ struct Boid {
 		mat4 scale = Scale(size);
 		mat4 orient = Orientation(v, vec3(0.0f, 1.0f, 0.0f));
 		mat4 modelview = trans * scale * orient;
-		boid_mesh.Display(camera, &modelview);
+		boid_meshes[mesh].Display(camera, &modelview);
 	}
 };
 
 struct Rock {
 	vec3 p, r; // pos, rotation
+	int mesh;
 	float size;
 	Rock(vec3 pos) {
-		p = pos; size = ROCK_SIZE + (rand_float(-1, 1) * ROCK_SIZE_VARIANCE), r = rand_vec3(0, 360);
+		p = pos, mesh = rand() % rockObjFilenames.size(), size = ROCK_SIZE + (rand_float(-1, 1) * ROCK_SIZE_VARIANCE), r = rand_vec3(0, 360);
 	}
 	void Draw() {
-		rock_mesh.PreDisplay();
+		rock_meshes[mesh].PreDisplay();
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_DEPTH_TEST);
@@ -218,7 +228,7 @@ struct Rock {
 		mat4 scale = Scale(size);
 		mat4 rot = RotateX(r.x) * RotateY(r.y) * RotateZ(r.z);
 		mat4 modelview = trans * scale * rot;
-		rock_mesh.Display(camera, &modelview);
+		rock_meshes[mesh].Display(camera, &modelview);
 	}
 };
 
@@ -318,12 +328,12 @@ void DrawVectors() {
 void Display() {
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
 	glUseProgram(cubeProgram);
-	glClearColor(0.3f, 0.3f, 0.4f, 1.); 
+	glClearColor(0.188f, 0.333f, 0.447f, 1.); 
 	glClear(GL_COLOR_BUFFER_BIT);
 	SetUniform(cubeProgram, "persp", camera.persp);
+	SetUniform(cubeProgram, "modelview", camera.modelview);
 	// Draw cube
 	VertexAttribPointer(cubeProgram, "point", 3, 0, (void*)0);
-	SetUniform(cubeProgram, "modelview", camera.modelview);
 	for (int i = 0; i < 6; i++) {
 		glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, cube_faces[i]);
 	}
@@ -359,11 +369,16 @@ int main() {
 	PrintGLErrors();
 	if (!(cubeProgram = LinkProgramViaCode(&cubeVertShader, &cubeFragShader)))
 		return 1;
-	mat4 rot = RotateY(-90.0f);
-	boid_mesh.Read((char*)boidObjFilename, (char*)boidTexFilename, boidTexUnit, &rot);
-	printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", boidObjFilename, boid_mesh.points.size(), boid_mesh.normals.size(), boid_mesh.uvs.size(), boid_mesh.triangles.size());
-	rock_mesh.Read((char*)rockObjFilename, (char*)rockTexFilename, rockTexUnit);
-	printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", rockObjFilename, rock_mesh.points.size(), rock_mesh.normals.size(), rock_mesh.uvs.size(), rock_mesh.triangles.size());
+	for (size_t i = 0; i < boidObjFilenames.size(); i++) {
+		boid_meshes.push_back(dMesh());
+		boid_meshes[i].Read((char*)boidObjFilenames[i], (char*)boidTexFilenames[i], boidTexUnits[i], &boidObjTransforms[i]);
+		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", boidObjFilenames[i], boid_meshes[i].points.size(), boid_meshes[i].normals.size(), boid_meshes[i].uvs.size(), boid_meshes[i].triangles.size());
+	}
+	for (size_t i = 0; i < rockObjFilenames.size(); i++) {
+		rock_meshes.push_back(dMesh());
+		rock_meshes[i].Read((char*)rockObjFilenames[i], (char*)rockTexFilenames[i], rockTexUnits[i]);
+		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", rockObjFilenames[i], rock_meshes[i].points.size(), rock_meshes[i].normals.size(), rock_meshes[i].uvs.size(), rock_meshes[i].triangles.size());
+	}
 	InitSceneObjects();
 	InitVertexBuffer();
 	glfwWindowHint(GLFW_SAMPLES, 4);
