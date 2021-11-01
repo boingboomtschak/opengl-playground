@@ -8,7 +8,16 @@ https://user-images.githubusercontent.com/36770835/139711575-9e663c8d-463b-4ea8-
 
 ## Particles-3D
 
+A simple particle emitter, which emits textured cubes in 3D. An extension of the "particles" script detailed below.
+
+https://user-images.githubusercontent.com/36770835/139712469-aee46d39-fa2d-4514-9750-dd7c66866c4d.mp4
+
 ## TextureCube
+
+Script demonstrating texture mapping and Phong shading of a cube map with some hardcoded cube vertices/normals/uvs. 
+
+https://user-images.githubusercontent.com/36770835/139712857-7b0fb4da-71eb-47a3-921f-a0c4b2f0625e.mp4
+
 
 ## Particles
 
@@ -17,4 +26,11 @@ https://user-images.githubusercontent.com/36770835/139711575-9e663c8d-463b-4ea8-
 ## Chessboard
 
 ## Colorful-Letter
+
+
+
+
+
+
+
 
