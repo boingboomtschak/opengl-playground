@@ -362,6 +362,10 @@ void Display() {
 	SetUniform(program, "modelview", camera.modelview);
 	SetUniform(program, "textureName", (int)planeTexName);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, plane_tris);
+	// Draw other side of floor
+	mat4 modelview = camera.modelview * Translate(0, -1, 0) * RotateZ(180.0f) * Translate(0, 1, 0);
+	SetUniform(program, "modelview", modelview);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, plane_tris);
 	// Draw boids
 	for (size_t i = 0; i < flock.size(); i++) {
 		if (running) {
