@@ -18,14 +18,31 @@ Script demonstrating texture mapping and Phong shading of a cube map with some h
 
 https://user-images.githubusercontent.com/36770835/139712857-7b0fb4da-71eb-47a3-921f-a0c4b2f0625e.mp4
 
+## Boids
+
+Basic implementation of Craig Reynolds' boids model, in 2D using a single triangle for each "boid".
+
+https://user-images.githubusercontent.com/36770835/139741995-3a86f0d3-0a62-471e-aae2-4a73cc46ead6.mp4
 
 ## Particles
 
-## Boids
+Simple particle emitter, works in 2D, spawns small square particles with a specified life and culls them as needed.
+
+https://user-images.githubusercontent.com/36770835/139742010-bf2b8113-c22d-4e49-9fc7-2b96d2ef2c26.mp4
+
+## Colorful-Letter
+
+A class assignment to draw your name by hardcoding vertices and triangles, and some transformations via the vertex shader.
+
+https://user-images.githubusercontent.com/36770835/139742034-48c986cf-92e5-41a5-8d8e-42c17a335b71.mp4
 
 ## Chessboard
 
-## Colorful-Letter
+A simple experiment with fragment shaders to draw a chessboard, for a class assignment.
+
+![CG-Playground_2WygCfuBt2](https://user-images.githubusercontent.com/36770835/139741966-e9527eb7-e026-4e87-8449-7fd5dd7e773a.png)
+
+
 
 
 
