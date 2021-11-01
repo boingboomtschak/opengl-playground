@@ -17,15 +17,17 @@
 using std::vector;
 
 GLuint vBuffer = 0;
-GLuint cubeProgram = 0;
+GLuint program = 0;
 GLuint texUnit = 0;
+GLuint planeTexUnit, planeTexName;
 
 vector<const char*> boidObjFilenames = { "./objects/fish/fish1.obj", "./objects/fish/fish2.obj", "./objects/fish/fish3.obj", "./objects/fish/fish4.obj" };
 vector<const char*> boidTexFilenames = { "./textures/fish/fish1.tga", "./textures/fish/fish2.tga", "./textures/fish/fish3.tga", "./textures/fish/fish4.tga" };
 vector<mat4> boidObjTransforms = { RotateY(-90.0f), mat4(), RotateY(90.0f) * RotateX(-90.0f), mat4() };
-vector<const char*> rockObjFilenames = { "./objects/rock/rock1.obj", "./objects/rock/rock2.obj", "./objects/rock/rock3.obj"};
+vector<const char*> rockObjFilenames = { "./objects/rock/rock1.obj", "./objects/rock/rock2.obj", "./objects/rock/rock3.obj" };
 vector<const char*> rockTexFilenames = { "./textures/rock/rock1.tga", "./textures/rock/rock2.tga", "./textures/rock/rock3.tga" };
 vector<const char*> rockNormFilenames = { "./textures/rock/rock1_normal.tga", "./textures/rock/rock2_normal.tga", "./textures/rock/rock3_normal.tga" };
+const char* sandTexFilename = "./textures/sand.tga";
 
 int win_width = 800;
 int win_height = 800;
@@ -34,8 +36,10 @@ Camera camera((float) win_width / win_height, vec3(0, 0, 0), vec3(0, 0, -5));
 
 vector<dMesh> boid_meshes;
 vector<dMesh> rock_meshes;
-float cube_points[][3] = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} };
-int cube_faces[][4] = { {0, 1, 2, 3}, {2, 3, 4, 5}, {4, 5, 6, 7}, {6, 7, 0, 1}, {0, 3, 4, 7}, {1, 2, 5, 6} };
+float cube_points[][3] = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} }; int cube_faces[][4] = { {0, 1, 2, 3}, {2, 3, 4, 5}, {4, 5, 6, 7}, {6, 7, 0, 1}, {0, 3, 4, 7}, {1, 2, 5, 6} };
+float plane_points[][3] = { {-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1} }; 
+float plane_uvs[][2] = { {0, 0}, {1, 0}, {1, 1}, {0, 1} }; 
+int plane_tris[][3] = { {0, 1, 2}, {2, 3, 0} };
 
 vec3 lightSource = vec3(1, 1, 0);
 
@@ -151,6 +155,19 @@ struct Boid {
 	}
 	vec3 Avoidance() {
 		p += v;
+		// Wrap boids around edges of screen
+		if (p.x > 1.0f)
+			p.x = -1.0f;
+		if (p.x < -1.0f)
+			p.x = 1.0f;
+		if (p.y > 1.0f)
+			p.y = -1.0f;
+		if (p.y < -1.0f)
+			p.y = 1.0f;
+		if (p.z > 1.0f)
+			p.z = -1.0f;
+		if (p.z < -1.0f)
+			p.z = 1.0f;
 		// Steer boids away from walls
 		/*
 		if (p.x < -1 + WALL_RANGE)
@@ -168,19 +185,6 @@ struct Boid {
 		if (p.z > 1 - WALL_RANGE)
 			return vec3(0.0f, 0.0f, 1 / (-1 - p.z)); // back wall
 		*/
-			// Wrap boids around edges of screen
-		if (p.x > 1.0f)
-			p.x = -1.0f;
-		if (p.x < -1.0f)
-			p.x = 1.0f;
-		if (p.y > 1.0f)
-			p.y = -1.0f;
-		if (p.y < -1.0f)
-			p.y = 1.0f;
-		if (p.z > 1.0f)
-			p.z = -1.0f;
-		if (p.z < -1.0f)
-			p.z = 1.0f;
 		return vec3(0.0f);
 	}
 	void Run() {
@@ -230,21 +234,27 @@ struct Rock {
 	}
 };
 
-const char* cubeVertShader = R"(
+const char* vertShader = R"(
 	#version 130
 	in vec3 point;
+	in vec2 uv;
+	out vec2 vUv;
 	uniform mat4 modelview;
 	uniform mat4 persp;
 	void main() {
 		gl_Position = persp * modelview * vec4(point, 1);
+		vUv = uv;
 	}
 )";
 
-const char* cubeFragShader = R"(
+const char* fragShader = R"(
 	#version 130
+	in vec2 vUv;
 	out vec4 pColor;
+	uniform sampler2D textureName;
+	uniform int useTexture = 0;
 	void main() {
-		pColor = vec4(1, 1, 1, 1);
+		pColor = useTexture == 1? texture(textureName, vUv) : vec4(1);
 	}
 )";
 
@@ -292,9 +302,11 @@ void MouseWheel(GLFWwindow* w, double ignore, double spin) {
 void InitVertexBuffer() {
 	glGenBuffers(1, &vBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	size_t size = sizeof(cube_points);
+	size_t size = sizeof(cube_points) + sizeof(plane_points) + sizeof(plane_uvs);
 	glBufferData(GL_ARRAY_BUFFER, size, NULL, GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(cube_points), cube_points);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cube_points), sizeof(plane_points), plane_points);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cube_points) + sizeof(plane_points), sizeof(plane_uvs), plane_uvs);
 }
 
 void InitSceneObjects() {
@@ -324,20 +336,32 @@ void DrawVectors() {
 }
 
 void Display() {
-	glClearColor(0.188f, 0.333f, 0.447f, 1.); 
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_DEPTH_BUFFER_BIT);
 	glClearColor(0.3f, 0.3f, 0.4f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	// Draw cube
-	glUseProgram(cubeProgram);
+	glUseProgram(program);
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	VertexAttribPointer(cubeProgram, "point", 3, 0, (void*)0);
-	SetUniform(cubeProgram, "persp", camera.persp);
-	SetUniform(cubeProgram, "modelview", camera.modelview);
+	VertexAttribPointer(program, "point", 3, 0, (void*)0);
+	SetUniform(program, "useTexture", 0);
+	SetUniform(program, "persp", camera.persp);
+	SetUniform(program, "modelview", camera.modelview);
 	for (int i = 0; i < 6; i++) {
 		glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, cube_faces[i]);
 	}
-	glClear(GL_DEPTH_BUFFER_BIT);
+	// Draw floor
+	glUseProgram(program);
+	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
+	VertexAttribPointer(program, "point", 3, 0, (void*)sizeof(cube_points));
+	VertexAttribPointer(program, "uv", 2, 0, (void*)(sizeof(cube_points) + sizeof(plane_points)));
+	glActiveTexture(GL_TEXTURE0 + planeTexUnit);
+	glBindTexture(GL_TEXTURE_2D, planeTexName);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	SetUniform(program, "useTexture", 1);
+	SetUniform(program, "persp", camera.persp);
+	SetUniform(program, "modelview", camera.modelview);
+	SetUniform(program, "textureName", (int)planeTexName);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, plane_tris);
 	// Draw boids
 	for (size_t i = 0; i < flock.size(); i++) {
 		if (running) {
@@ -367,8 +391,10 @@ int main() {
 	glfwMakeContextCurrent(window);
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 	PrintGLErrors();
-	if (!(cubeProgram = LinkProgramViaCode(&cubeVertShader, &cubeFragShader)))
+	if (!(program = LinkProgramViaCode(&vertShader, &fragShader)))
 		return 1;
+	planeTexUnit = ++texUnit;
+	planeTexName = LoadTexture(sandTexFilename, planeTexUnit);
 	for (size_t i = 0; i < boidObjFilenames.size(); i++) {
 		boid_meshes.push_back(dMesh());
 		texUnit++;
