@@ -29,17 +29,14 @@ vector<const char*> rockTexFilenames = { "./textures/rock/rock1.tga", "./texture
 vector<const char*> rockNormFilenames = { "./textures/rock/rock1_normal.tga", "./textures/rock/rock2_normal.tga", "./textures/rock/rock3_normal.tga" };
 const char* sandTexFilename = "./textures/sand.tga";
 
-int win_width = 800;
-int win_height = 800;
+int win_width = 800, win_height = 800;
 
 Camera camera((float) win_width / win_height, vec3(0, 0, 0), vec3(0, 0, -5));
 
 vector<dMesh> boid_meshes;
 vector<dMesh> rock_meshes;
 float cube_points[][3] = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} }; int cube_faces[][4] = { {0, 1, 2, 3}, {2, 3, 4, 5}, {4, 5, 6, 7}, {6, 7, 0, 1}, {0, 3, 4, 7}, {1, 2, 5, 6} };
-float plane_points[][3] = { {-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1} }; 
-float plane_uvs[][2] = { {0, 0}, {1, 0}, {1, 1}, {0, 1} }; 
-int plane_tris[][3] = { {0, 1, 2}, {2, 3, 0} };
+float plane_points[][3] = { {-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1} }; float plane_uvs[][2] = { {0, 0}, {1, 0}, {1, 1}, {0, 1} }; int plane_tris[][3] = { {0, 1, 2}, {2, 3, 0} };
 
 vec3 lightSource = vec3(1, 1, 0);
 
