@@ -6,15 +6,14 @@
 #include <GLFW/glfw3.h>
 #include <time.h>
 #include <vector>
-#include "VecMat.h"
 #include "Camera.h"
-#include "Misc.h"
 #include "GLXtras.h"
-#include "GeomUtils.h"
+#include "Mesh.h"
+#include "Misc.h"
+#include "VecMat.h"
 #include "CameraControls.h"
 #include "dCube.h"
-#include "dMesh.h"
-#include <Mesh.h>
+#include "GeomUtils.h"
 
 using std::vector;
 
@@ -37,8 +36,8 @@ vector<int3> meshTris;
 
 const char* particleObjFile = "objects/sphere.obj"; mat4 particleMeshTransform = mat4();
 
-const float PARTICLE_SIZE = 0.05f;
-const float PARTICLE_RANGE = 0.08f;
+const float PARTICLE_SIZE = 0.0f;
+const float PARTICLE_RANGE = 1.5 * PARTICLE_SIZE;
 const float PARTICLE_SPEED = 0.01f;
 const float PARTICLE_SPEED_STEPS = 5;
 const int MAX_PARTICLES = 200;
