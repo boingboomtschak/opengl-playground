@@ -1,4 +1,4 @@
-// GeomUtils.h - Devon McKee
+// GeomUtils.h : Devon McKee
 // Series of functions to help calculate geometry
 
 #ifndef GEOM_UTIL_HDR
@@ -18,6 +18,16 @@ using std::max;
 // Returns float between min and max, defaults to 0 and 1, respectively
 // Best practice would be to seed rand() beforehand, but not guaranteed in this fn
 float rand_float(float min = 0, float max = 1) { return min + (float)rand() / (RAND_MAX / (max - min)); }
+
+// Returns random vec3 with all members between 0 and 1
+vec3 rand_vec3(float min = -1, float max = 1) { return vec3(min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min))); }
+
+// Returns random vec3 with length of 1 (usually a direction / velocity vector)
+vec3 rand_dir() {
+	float theta = rand_float(0, 2 * M_PI);
+	float z = rand_float(-1, 1);
+	return vec3(sqrt(1 - (z * z)) * cos(theta), sqrt(1 - (z * z)) * sin(theta), z);
+}
 
 // Returns float distance between two vec3 objs
 float dist(vec3 p1, vec3 p2) { return (float)sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2) + pow(p2.z - p1.z, 2)); }
@@ -126,6 +136,14 @@ vector<vec3> QuickHull(vector<vec3> points) {
 	hull.insert(hull.end(), ahull.begin(), ahull.end());
 	hull.insert(hull.end(), bhull.begin(), bhull.end());
 	return hull;
+}
+
+// Creates an orientation matrix 
+mat4 Orientation(vec3 forward, vec3 up) {
+	vec3 z = normalize(forward);
+	vec3 x = normalize(cross(z, up));
+	vec3 y = normalize(cross(x, z));
+	return mat4(vec4(x.x, y.x, z.x, 0), vec4(x.y, y.y, z.y, 0), vec4(x.z, y.z, z.z, 0), vec4(0, 0, 0, 1));
 }
 
 #endif // GEOM_UTIL_HDR

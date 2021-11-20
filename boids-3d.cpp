@@ -80,8 +80,8 @@ struct Boid {
 	vector<int> nb, _nb; // neighbors, bucket for different meshed neighbors
 	int mesh;
 	float size = BOID_SIZE + (rand_float(-1, 1) * BOID_SIZE_VARIANCE);
-	Boid(vec3 xy, vec3 nv) {
-		p = xy, v = nv, mesh = rand() % boidObjFilenames.size(); 
+	Boid(vec3 xyz, vec3 nv) {
+		p = xyz, v = nv, mesh = rand() % boidObjFilenames.size(); 
 	}
 	void FindNeighbors() {
 		for (size_t i = 0; i < flock.size(); i++) {
