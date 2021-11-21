@@ -13,6 +13,7 @@
 #include "Misc.h"
 #include "GLXtras.h"
 #include "dMesh.h"
+#include "GeomUtils.h"
 
 using std::vector;
 
@@ -40,15 +41,6 @@ float plane_points[][3] = { {-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1} }
 
 vec3 lightSource = vec3(1, 1, 0);
 
-float rand_float(float min = 0, float max = 1) { return min + (float)rand() / (RAND_MAX / (max - min)); }
-vec3 rand_vec3(float min = -1, float max = 1) { return vec3(min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min))); }
-float dist(vec3 p1, vec3 p2) { return (float)sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2) + pow(p2.z - p1.z, 2)); }
-mat4 Orientation(vec3 forward, vec3 up) { // JB see textbook p. 189
-	vec3 z = normalize(forward);
-	vec3 x = normalize(cross(z, up));
-	vec3 y = normalize(cross(x, z));
-	return mat4(vec4(x.x, y.x, z.x, 0), vec4(x.y, y.y, z.y, 0), vec4(x.z, y.z, z.z, 0), vec4(0, 0, 0, 1));
-}
 vec3 XVec(vec3 v, mat4 m) { vec4 x = m * vec4(v); return .1f * vec3(x.x, x.y, x.z); }
 
 

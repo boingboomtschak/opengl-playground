@@ -36,7 +36,7 @@ vector<int3> meshTris;
 
 const char* particleObjFile = "objects/sphere.obj"; mat4 particleMeshTransform = mat4();
 
-const float PARTICLE_SIZE = 0.0f;
+const float PARTICLE_SIZE = 0.05f;
 const float PARTICLE_RANGE = 1.5 * PARTICLE_SIZE;
 const float PARTICLE_SPEED = 0.01f;
 const float PARTICLE_SPEED_STEPS = 5;
