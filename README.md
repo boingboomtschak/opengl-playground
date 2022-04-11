@@ -1,4 +1,4 @@
-﻿# computer-graphics
+﻿# opengl-playground
 
 ## Boids-3D
 
