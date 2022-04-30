@@ -3,7 +3,12 @@
 #ifndef MISC_HDR
 #define MISC_HDR
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <string.h>
 #include <time.h>
 #include "VecMat.h"

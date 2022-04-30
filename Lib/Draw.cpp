@@ -1,7 +1,12 @@
 // Draw.cpp - various draw operations
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
-#include <gl/glu.h>
+#endif
+//#include <GL/glu.h>
 #include "Draw.h"
 #include "GLXtras.h"
 #include "Misc.h"
@@ -9,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
+#include "VecMat.h"
 
 // Screen Mode
 
@@ -98,10 +104,10 @@ void ScreenRay(float xscreen, float yscreen, mat4 modelview, mat4 persp, vec3 &p
 			tpersp[i][j] = persp[j][i];
 		}
 	// un-project two screen points of differing depth to determine v
-	if (gluUnProject(xscreen, yscreen, .25, (const double*) tmodelview, (const double*) tpersp, vp, &a[0], &a[1], &a[2]) == GL_FALSE)
-		printf("UnProject false\n");
-	if (gluUnProject(xscreen, yscreen, .50, (const double*) tmodelview, (const double*) tpersp, vp, &b[0], &b[1], &b[2]) == GL_FALSE)
-		printf("UnProject false\n");
+	//if (gluUnProject(xscreen, yscreen, .25, (const double*) tmodelview, (const double*) tpersp, vp, &a[0], &a[1], &a[2]) == GL_FALSE)
+	//	printf("UnProject false\n");
+	//if (gluUnProject(xscreen, yscreen, .50, (const double*) tmodelview, (const double*) tpersp, vp, &b[0], &b[1], &b[2]) == GL_FALSE)
+	//	printf("UnProject false\n");
 	v = normalize(vec3((float) (b[0]-a[0]), (float) (b[1]-a[1]), (float) (b[2]-a[2])));
 }
 
@@ -118,10 +124,10 @@ void ScreenLine(float xscreen, float yscreen, mat4 modelview, mat4 persp, vec3 &
 			tmodelview[i][j] = modelview[j][i];
 			tpersp[i][j] = persp[j][i];
 		}
-	if (gluUnProject(xscreen, yscreen, .25, (const double*) tmodelview, (const double*) tpersp, vp, &a[0], &a[1], &a[2]) == GL_FALSE)
-		printf("UnProject false\n");
-	if (gluUnProject(xscreen, yscreen, .50, (const double*) tmodelview, (const double*) tpersp, vp, &b[0], &b[1], &b[2]) == GL_FALSE)
-		printf("UnProject false\n");
+	//if (gluUnProject(xscreen, yscreen, .25, (const double*) tmodelview, (const double*) tpersp, vp, &a[0], &a[1], &a[2]) == GL_FALSE)
+	//	printf("UnProject false\n");
+	//if (gluUnProject(xscreen, yscreen, .50, (const double*) tmodelview, (const double*) tpersp, vp, &b[0], &b[1], &b[2]) == GL_FALSE)
+	//	printf("UnProject false\n");
 		// alternatively, a seond point can be determined by transforming the origin by the inverse of modelview
 		// this would yield in world space the camera location, through which all view lines pass
 	p1 = vec3(static_cast<float>(a[0]), static_cast<float>(a[1]), static_cast<float>(a[2]));
@@ -328,7 +334,7 @@ void LineStrip(int nPoints, vec3 *points, vec3 &color, float opacity, float widt
 	glBufferSubData(GL_ARRAY_BUFFER, 0, pSize, points);
 	glBufferSubData(GL_ARRAY_BUFFER, pSize, pSize, &colors[0]);
 	VertexAttribPointer(drawShader, "position", 3, 0, (void *) 0);
-	VertexAttribPointer(drawShader, "color", 3, 0, (void *) pSize);
+	VertexAttribPointer(drawShader, "color", 3, 0, (void *)(size_t)pSize);
 	SetUniform(drawShader, "fadeToCenter", 0);
 	SetUniform(drawShader, "opacity", opacity);
 	glLineWidth(width);

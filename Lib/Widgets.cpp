@@ -1,8 +1,13 @@
 // Widgets.cpp
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#define GLFW_INCLUDE_NONE
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <GLFW/glfw3.h>
-#include <gl/glu.h>
 #include "Draw.h"
 #include "GLXtras.h"
 #include "Letters.h"
@@ -403,7 +408,7 @@ void Joystick::Drag(int x, int y, mat4 modelview, mat4 persp) {
 }
 
 void Joystick::Draw(vec3 color, mat4 modelview, mat4 persp) {
-//  bool frontFacing = FrontFacing(*base, *vec, modelview);
+    bool frontFacing = FrontFacing(*base, *vec, modelview);
 	UseDrawShader(persp*modelview);
 #ifdef GL_LINE_STIPPLE
 	if (!frontFacing) {

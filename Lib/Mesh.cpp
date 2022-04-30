@@ -7,7 +7,6 @@
 #include <assert.h>
 #include <iostream>
 #include <fstream>
-#include <direct.h>
 #include <float.h>
 #include <string.h>
 #include <cstdlib>
@@ -24,7 +23,7 @@ GLuint meshShader = 0;
 // Mesh Shaders
 
 const char *meshVertexShader = R"(
-    #version 130
+    #version 410
     in vec3 point;
     in vec3 normal;
     in vec2 uv;
@@ -42,7 +41,7 @@ const char *meshVertexShader = R"(
 )";
 
 const char *meshPixelShader = R"(
-    #version 130
+    #version 410
     in vec3 vPoint;
     in vec3 vNormal;
     in vec2 vUv;
@@ -113,8 +112,8 @@ void Mesh::Display(CameraAB &camera) {
 	SetUniform(shader, "useTexture", textureUnit? 1 : 0);
     // vertex feeder
     VertexAttribPointer(shader, "point", 3, 0, (void *) 0);
-    VertexAttribPointer(shader, "normal", 3, 0, (void *) sizePoints);
-    VertexAttribPointer(shader, "uv", 2, 0, (void *) (sizePoints+sizeNormals));
+    VertexAttribPointer(shader, "normal", 3, 0, (void *)(size_t)sizePoints);
+    VertexAttribPointer(shader, "uv", 2, 0, (void *)(size_t)(sizePoints+sizeNormals));
     // set custom transform (xform = mesh transforms X view transform)
 	if (textureUnit) {
 	    glActiveTexture(GL_TEXTURE0+textureUnit);  // active texture corresponds with textureUnit or textureName????
@@ -406,7 +405,7 @@ int ReadSTL(const char *filename, vector<VertexSTL> &vertices) {
                     printf("\ncan't read triangle %d normal\n", nTriangle);
                 for (int k = 0; k < 3; k++)
                     if (fread(&v[k].x, sizeof(float), 3, in) != 3)
-                        printf("\ncan't read vid %d\n", verts->size());
+                        printf("\ncan't read vid %d\n", (int)verts->size());
                 vec3 a(v[1]-v[0]), b(v[2]-v[1]);
                 vec3 ntmp = cross(a, b);
                 if (dot(ntmp, n) < 0) {

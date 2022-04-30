@@ -8,7 +8,6 @@
 #include <assert.h>
 #include <iostream>
 #include <fstream>
-#include <direct.h>
 #include <float.h>
 #include <string.h>
 #include <cstdlib>

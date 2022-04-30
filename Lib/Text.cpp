@@ -1,7 +1,6 @@
 // Text.cpp: display text using FreeType
 // see tutorial: https://learnopengl.com/In-Practice/Text-Rendering
 
-#include <glad.h>
 #include "Draw.h"
 #include "GLXtras.h"
 #include "Text.h"

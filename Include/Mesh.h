@@ -3,7 +3,12 @@
 #ifndef MESH_HDR
 #define MESH_HDR
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <stdio.h>
 #include <vector>
 #include "CameraArcball.h"

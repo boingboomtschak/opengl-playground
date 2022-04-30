@@ -16,5 +16,4 @@ vec3 GetStockColor(int i);
 void DrawStockColors(int screenX, int screenY, int blockWidth, int blockHeight,
                      int nColumns = 10, int margin = 0, vec3 *background = NULL);
 
-*/
 #endif

@@ -1,6 +1,11 @@
 // dCube.h : Object to enclose a wireframed cube to be drawn to screen
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <stdio.h>
 #include <vector>
 #include "Camera.h"

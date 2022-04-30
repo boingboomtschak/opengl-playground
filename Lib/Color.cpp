@@ -1,6 +1,11 @@
 // Color.cpp, Copyright (c) Jules Bloomenthal, Seattle, 2018, All rights reserved.
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <stdio.h>
 #include <float.h>
 #include <stdlib.h>

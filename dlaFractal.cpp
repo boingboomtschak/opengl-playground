@@ -2,7 +2,13 @@
 
 #define _USE_MATH_DEFINES
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#define GLFW_INCLUDE_NONE
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <GLFW/glfw3.h>
 #include <time.h>
 #include <vector>
@@ -97,7 +103,7 @@ struct Particle {
 };
 
 const char* vertShader = R"(
-	#version 130
+	#version 410 core
 	in vec3 point;
 	in vec3 normal;
 	out vec3 vPoint;
@@ -112,7 +118,7 @@ const char* vertShader = R"(
 )";
 
 const char* fragShader = R"(
-	#version 130
+	#version 410 core
 	in vec3 vPoint;
 	in vec3 vNormal;
 	out vec4 pColor;

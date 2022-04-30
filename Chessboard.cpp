@@ -1,16 +1,23 @@
 // 2-ClearScreen.cpp - use OpenGL shader architecture
 
-#include <glad.h>											// GL header file
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#define GLFW_INCLUDE_NONE
+#include <OpenGL/gl3.h>
+#else
+#include <glad.h>
+#endif
 #include <glfw3.h>											// GL toolkit
 #include <stdio.h>											// printf, etc.
 #include "GLXtras.h"										// convenience routines
 
 GLuint vBuffer = 0;											// GPU vert buf ID, valid if > 0
+GLuint vArray = 0;
 GLuint program = 0;											// shader prog ID, valid if > 0
 
 // vertex shader: operations before the rasterizer
 const char *vertexShader = R"(
-	#version 130
+	#version 410 core
 	in vec2 point;											// 2D point from GPU memory
 	void main() {
 		// REQUIREMENT 1A) transform vertex:
@@ -20,7 +27,7 @@ const char *vertexShader = R"(
 
 // pixel shader: operations after the rasterizer
 const char *pixelShader = R"(
-	#version 130
+	#version 410 core
 	out vec4 pColor;
 	void main() {
 		if (mod(floor(gl_FragCoord.x / 50), 2) == 0) {
@@ -39,30 +46,27 @@ const char *pixelShader = R"(
 
 void InitVertexBuffer() {
 	// REQUIREMENT 3A) create GPU buffer, copy 4 vertices
-#ifdef GL_QUADS
-	float pts[][2] = {{-1,-1},{-1,1},{1,1},{1,-1}};			// “object”
-#else
 	float pts[][2] = {{-1,-1},{-1,1},{1,1},{-1,-1},{1,1},{1,-1}};
-#endif
+	glGenVertexArrays(1, &vArray);
+	glBindVertexArray(vArray);
 	glGenBuffers(1, &vBuffer);								// ID for GPU buffer
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);					// make it active
 	glBufferData(GL_ARRAY_BUFFER, sizeof(pts), pts, GL_STATIC_DRAW);
-}
-
-void Display() {
-	glUseProgram(program);									// ensure correct program
-	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);					// activate vertex buffer
 	// REQUIREMENT 3B) set vertex feeder
 	GLint id = glGetAttribLocation(program, "point");
 	glEnableVertexAttribArray(id);
 	glVertexAttribPointer(id, 2, GL_FLOAT, GL_FALSE, 0, (void *) 0);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void Display() {
+	glUseProgram(program);									// ensure correct program
+	glBindVertexArray(vArray);
 	// in subsequent code the above three lines will be replaced with
 	// VertexAttribPointer(program, "point", 2, 0, (void *) 0);
-#ifdef GL_QUADS
-	glDrawArrays(GL_QUADS, 0, 4);							// display entire window
-#else
 	glDrawArrays(GL_TRIANGLES, 0, 6);
-#endif
+	PrintGLErrors("Draw arrays");
 	glFlush();												// flush GL ops
 }
 
@@ -89,13 +93,21 @@ int main() {												// application entry
 	if (!glfwInit())
 		return 1;
 	// create named window of given size
+	#ifdef __APPLE__
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	#endif
 	GLFWwindow *w = glfwCreateWindow(400, 400, "Chessboard", NULL, NULL);
 	if (!w)
 		return AppError("can't open window");
 	glfwMakeContextCurrent(w);
+#ifndef __APPLE__
 	gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);	// set OpenGL extensions
 	// following line will not compile if glad.h < OpenGLv4.3
 	glDebugMessageCallback(GlslError, NULL);
+#endif
 	// REQUIREMENT 2) build shader program
 	if (!(program = LinkProgramViaCode(&vertexShader, &pixelShader)))
 		return AppError("can't link shader program");

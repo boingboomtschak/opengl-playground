@@ -1,4 +1,3 @@
-#include <glad.h>
 #include <stdio.h>
 #include <vector>
 #include "Camera.h"
@@ -14,7 +13,7 @@ namespace {
 	GLuint meshShader = 0;
 
 	const char* defMeshVertShader = R"(
-        #version 130
+        #version 410 core
         in vec3 point;
         in vec3 normal;
         in vec2 uv;
@@ -32,7 +31,7 @@ namespace {
 	)";
 
 	const char* defMeshFragShader = R"(
-        #version 130
+        #version 410 core
         in vec3 vPoint;
         in vec3 vNormal;
         in vec2 vUv;
@@ -48,10 +47,16 @@ namespace {
             float d = abs(dot(N, L));          // two-sided diffuse
             float s = abs(dot(R, E));          // two-sided specular
             float intensity = clamp(d+pow(s, 50), 0, 1);
-            vec3 color = useTexture == 1? texture(textureName, vUv).rgb : vec3(1);
+            vec3 color = useTexture == 1 ? texture(textureName, vUv).rgb : vec3(1);
             pColor = vec4(intensity*color, 1);
         }
 	)";
+}
+
+dMesh::~dMesh() {
+    if (vArray > 0) glDeleteVertexArrays(1, &vArray);
+    if (vBuffer > 0) glDeleteBuffers(1, &vBuffer);
+    if (iBuffer > 0) glDeleteBuffers(1, &iBuffer);
 }
 
 GLuint dMesh::GetMeshShader() {
@@ -76,6 +81,9 @@ void dMesh::Buffer() {
         fprintf(stderr, "dMesh : Mesh missing points, normals, or uvs\n");
         return;
     }
+    GLuint shader = GetMeshShader();
+    glGenVertexArrays(1, &vArray);
+    glBindVertexArray(vArray);
     glGenBuffers(1, &vBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
     size_t sizePts = points.size() * sizeof(vec3);
@@ -86,6 +94,21 @@ void dMesh::Buffer() {
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizePts, &points[0]);
     glBufferSubData(GL_ARRAY_BUFFER, sizePts, sizeNorms, &normals[0]);
     glBufferSubData(GL_ARRAY_BUFFER, sizePts + sizeNorms, sizeUvs, &uvs[0]);
+    glGenBuffers(1, &iBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(int3), triangles.data(), GL_STATIC_DRAW);
+    VertexAttribPointer(shader, "point", 3, 0, (void*)0);
+    VertexAttribPointer(shader, "normal", 3, 0, (void*)sizePts);
+    VertexAttribPointer(shader, "uv", 2, 0, (void*)(sizePts + sizeNorms));
+    if (texUnit && texName) {
+        glActiveTexture(GL_TEXTURE0 + texUnit);
+        glBindTexture(GL_TEXTURE_2D, texName);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void dMesh::PreDisplay() {
@@ -93,9 +116,7 @@ void dMesh::PreDisplay() {
     if (!numPts || !numNorms || !numUvs || !numTris) {
         fprintf(stderr, "dMesh : Mesh not initialized before display call\n");
     }
-    glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-    size_t sizePts = numPts * sizeof(vec3);
-    size_t sizeNorms = numNorms * sizeof(vec3);
+    glBindVertexArray(vArray);
     int shader = UseMeshShader();
     preDisp = true;
 }
@@ -105,29 +126,21 @@ void dMesh::Display(Camera camera, mat4* m) {
     if (!numPts || !numNorms || !numUvs || !numTris) {
         fprintf(stderr, "dMesh : Mesh not initialized before display call\n");
     }
-    size_t sizePts = numPts * sizeof(vec3);
-    size_t sizeNorms = numNorms * sizeof(vec3);
     int shader;
     if (!preDisp) {
-        glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
+        glBindVertexArray(vArray);
         shader = UseMeshShader();
     } else {
         shader = GetMeshShader();
         preDisp = false;
     }
     SetUniform(shader, "useTexture", texUnit ? 1 : 0);
-    VertexAttribPointer(shader, "point", 3, 0, (void*)0);
-    VertexAttribPointer(shader, "normal", 3, 0, (void*)sizePts);
-    VertexAttribPointer(shader, "uv", 2, 0, (void*)(sizePts + sizeNorms));
-    if (texUnit) {
-        glActiveTexture(GL_TEXTURE0 + texUnit);
-        glBindTexture(GL_TEXTURE_2D, texName);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        SetUniform(shader, "textureName", (int)texName);
-    }
+    if (texUnit) 
+        SetUniform(shader, "textureName", (int)texUnit);
     SetUniform(shader, "persp", camera.persp);
     SetUniform(shader, "modelview", camera.modelview * *m * transform);
-    glDrawElements(GL_TRIANGLES, 3 * numTris, GL_UNSIGNED_INT, &triangles[0]);
+    glDrawElements(GL_TRIANGLES, 3 * numTris, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
 }
 
 bool dMesh::Read(char* objFilename, mat4* m) {
@@ -143,18 +156,17 @@ bool dMesh::Read(char* objFilename, mat4* m) {
 }
 
 bool dMesh::Read(char* objFilename, char* texFilename, int textureUnit, mat4* m) {
-    if (!Read(objFilename, m))
-        return false;
-    if (!textureUnit) {
-        fprintf(stderr, "dMesh : Bad texture unit\n");
-        return false;
-    }
     texUnit = textureUnit;
     texName = LoadTexture(texFilename, texUnit);
     if (!texName) {
         fprintf(stderr, "dMesh : Bad texture name\n");
         return false;
     }
-    glGenerateMipmap(GL_TEXTURE_2D);
+    if (!textureUnit) {
+        fprintf(stderr, "dMesh : Bad texture unit\n");
+        return false;
+    }
+    if (!Read(objFilename, m))
+        return false;
     return true;
 }

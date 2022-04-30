@@ -1,11 +1,6 @@
 // dCube.cpp : Implementation for dCube.h
 
-#include <glad.h>
-#include <stdio.h>
-#include <vector>
-#include "Camera.h"
 #include "dCube.h"
-#include "VecMat.h"
 #include "GLXtras.h"
 #include "Misc.h"
 
@@ -13,7 +8,7 @@ namespace {
 	GLuint cubeShader = 0;
 
 	const char* cubeVertShader = R"(
-		#version 130
+		#version 410 core
 		in vec3 point;
 		uniform mat4 modelview;
 		uniform mat4 persp;
@@ -23,7 +18,7 @@ namespace {
 	)";
 
 	const char* cubeFragShader = R"(
-		#version 130
+		#version 410 core
 		out vec4 pColor;
 		void main() {
 			pColor = vec4(1);

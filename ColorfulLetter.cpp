@@ -1,6 +1,12 @@
 // 4-ColorfulLetter.cpp: draw multiple triangles to form a colorful letter
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#define GLFW_INCLUDE_NONE
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <glfw3.h>
 #include <stdio.h>
 #include "GLXtras.h"
@@ -9,11 +15,13 @@
 
 // shader program
 
+GLuint vArray = 0;
 GLuint vBuffer = 0; // GPU vertex buffer ID, valid if > 0
+GLuint iBuffer = 0;
 GLuint program = 0; // GLSL program ID, valid if > 0
 
 const char *vertexShader = R"(
-	#version 130
+	#version 410 core
 	in vec2 point;
 	in vec3 color;
 	out vec4 vColor;
@@ -33,7 +41,7 @@ const char *vertexShader = R"(
 )";
 
 const char *pixelShader = R"(
-	#version 130
+	#version 410 core
 	in vec4 vColor;
 	out vec4 pColor;
 	void main() {
@@ -83,6 +91,8 @@ float colors[][3] = { {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1,
 time_t startTime = clock();
 
 void InitVertexBuffer() {
+	glGenVertexArrays(1, &vArray);
+	glBindVertexArray(vArray);
 	// create GPU buffer, make it active, allocate memory and copy vertices
 	glGenBuffers(1, &vBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
@@ -91,6 +101,16 @@ void InitVertexBuffer() {
 	glBufferData(GL_ARRAY_BUFFER, vsize+csize, NULL, GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, vsize, points);
 	glBufferSubData(GL_ARRAY_BUFFER, vsize, csize, colors);
+	// allocate and fill index buffer
+	glGenBuffers(1, &iBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(triangles), triangles, GL_STATIC_DRAW);
+	int pt_offset = sizeof(points), ntris = sizeof(triangles)/(3*sizeof(int));
+	VertexAttribPointer(program, "point", 2, 0, (void *) 0);
+	VertexAttribPointer(program, "color", 3, 0, (void *)(size_t)pt_offset);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 // display
@@ -101,14 +121,14 @@ void Display() {
 	glClearColor(.25f, .25f, .25f, 1);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glUseProgram(program);
+	PrintGLErrors("Using program");
 	SetUniform(program, "radAng", (float)(sin(dt*1.5)*0.1));
 	SetUniform(program, "time", (float)dt);
-	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	// establish vertex fetch for point and for color, then draw triangles
-	int vsize = sizeof(points), ntris = sizeof(triangles)/(3*sizeof(int));
-	VertexAttribPointer(program, "point", 2, 0, (void *) 0);
-	VertexAttribPointer(program, "color", 3, 0, (void *) vsize);
-	glDrawElements(GL_TRIANGLES, 3*ntris, GL_UNSIGNED_INT, &triangles[0]);
+	glBindVertexArray(vArray);
+	PrintGLErrors("Binding vertex array");
+	int ntris = sizeof(triangles)/(3*sizeof(int));
+	glDrawElements(GL_TRIANGLES, 3*ntris, GL_UNSIGNED_INT, 0);
+	PrintGLErrors("Draw elements");
 	glFlush();
 }
 
@@ -135,13 +155,21 @@ int main() {
 	glfwSetErrorCallback(ErrorGFLW);
 	if (!glfwInit())
 		return 1;
+#ifdef __APPLE__
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
 	GLFWwindow* window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Colorful Letter", NULL, NULL);
 	if (!window) {
 		glfwTerminate();
 		return 1;
 	}
 	glfwMakeContextCurrent(window);
+#ifndef __APPLE__
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+#endif
 	printf("GL version: %s\n", glGetString(GL_VERSION));
 	PrintGLErrors();
 	if (!(program = LinkProgramViaCode(&vertexShader, &pixelShader)))

@@ -1,6 +1,5 @@
 // Misc.cpp
 
-#include <glad.h>
 #include <stdio.h>
 #include <float.h>
 #include <stdlib.h>
@@ -13,9 +12,11 @@
 
 // Misc
 
+/* dependent on windows.h
+
 bool KeyDown(int button) {
-	static int nShortBits = 8*sizeof(SHORT);
-	static SHORT shortMSB = 1 << (nShortBits-1);
+	static int nShortBits = 8*sizeof(short);
+	static short shortMSB = 1 << (nShortBits-1);
 	return (GetKeyState(button) & shortMSB) != 0;
 }
 
@@ -30,6 +31,7 @@ std::string GetDirectory() {
 		if (buf[i] == '\\') buf[i] = '/';
 	return std::string(buf)+std::string("/");
 }
+*/
 
 time_t FileModified(const char *name) {
 	struct stat info;

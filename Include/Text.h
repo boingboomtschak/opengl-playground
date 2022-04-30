@@ -3,7 +3,13 @@
 #ifndef TEXT_HDR
 #define TEXT_HDR
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#define GLFW_INCLUDE_NONE
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <GLFW/glfw3.h>
 #include "GLXtras.h"
 

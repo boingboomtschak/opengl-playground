@@ -1,8 +1,13 @@
 // boids-3d.cpp : Devon McKee
 
-#define _USE_MATH_DEFINES
-
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#define GLFW_INCLUDE_NONE
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
+#define _USE_MATH_DEFINES
 #include <GLFW/glfw3.h>
 #include <time.h>
 #include <vector>
@@ -17,10 +22,12 @@
 
 using std::vector;
 
-GLuint vBuffer = 0;
 GLuint program = 0;
 GLuint texUnit = 0;
 GLuint planeTexUnit, planeTexName;
+GLuint cubeBuffer, planeBuffer;
+GLuint cubeIBuffer, planeIBuffer;
+GLuint cubeVAO, planeVAO;
 
 vector<const char*> boidObjFilenames = { "./objects/fish/fish1.obj", "./objects/fish/fish2.obj", "./objects/fish/fish3.obj", "./objects/fish/fish4.obj" };
 vector<const char*> boidTexFilenames = { "./textures/fish/fish1.tga", "./textures/fish/fish2.tga", "./textures/fish/fish3.tga", "./textures/fish/fish4.tga" };
@@ -36,13 +43,12 @@ Camera camera((float) win_width / win_height, vec3(0, 0, 0), vec3(0, 0, -5));
 
 vector<dMesh> boid_meshes;
 vector<dMesh> rock_meshes;
-float cube_points[][3] = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} }; int cube_faces[][4] = { {0, 1, 2, 3}, {2, 3, 4, 5}, {4, 5, 6, 7}, {6, 7, 0, 1}, {0, 3, 4, 7}, {1, 2, 5, 6} };
-float plane_points[][3] = { {-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1} }; float plane_uvs[][2] = { {0, 0}, {1, 0}, {1, 1}, {0, 1} }; int plane_tris[][3] = { {0, 1, 2}, {2, 3, 0} };
+GLfloat cube_points[][3] = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} }; GLuint cube_faces[] = { 0, 1, 2, 3, 2, 3, 4, 5, 4, 5, 6, 7, 6, 7, 0, 1, 0, 3, 4, 7, 1, 2, 5, 6 };
+GLfloat plane_points[][3] = { {-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1} }; GLfloat plane_uvs[][2] = { {0, 0}, {1, 0}, {1, 1}, {0, 1} }; GLuint plane_tris[][3] = { {0, 1, 2}, {2, 3, 0} };
 
 vec3 lightSource = vec3(1, 1, 0);
 
 vec3 XVec(vec3 v, mat4 m) { vec4 x = m * vec4(v); return .1f * vec3(x.x, x.y, x.z); }
-
 
 const float BOID_SPEED = 0.005f;
 const float BOID_SIZE = 0.06f;
@@ -224,7 +230,7 @@ struct Rock {
 };
 
 const char* vertShader = R"(
-	#version 130
+	#version 410 core
 	in vec3 point;
 	in vec2 uv;
 	out vec2 vUv;
@@ -237,13 +243,13 @@ const char* vertShader = R"(
 )";
 
 const char* fragShader = R"(
-	#version 130
+	#version 410 core
 	in vec2 vUv;
 	out vec4 pColor;
-	uniform sampler2D textureName;
+	uniform sampler2D textureUnit;
 	uniform int useTexture = 0;
 	void main() {
-		pColor = useTexture == 1? texture(textureName, vUv) : vec4(1);
+		pColor = (useTexture == 1) ? texture(textureUnit, vUv) : vec4(1);
 	}
 )";
 
@@ -288,14 +294,45 @@ void MouseWheel(GLFWwindow* w, double ignore, double spin) {
 	camera.MouseWheel(spin > 0, Shift(w));
 }
 
-void InitVertexBuffer() {
-	glGenBuffers(1, &vBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	size_t size = sizeof(cube_points) + sizeof(plane_points) + sizeof(plane_uvs);
-	glBufferData(GL_ARRAY_BUFFER, size, NULL, GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(cube_points), cube_points);
-	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cube_points), sizeof(plane_points), plane_points);
-	glBufferSubData(GL_ARRAY_BUFFER, sizeof(cube_points) + sizeof(plane_points), sizeof(plane_uvs), plane_uvs);
+void InitBuffers() {
+	// Get attribute locations
+	GLint point_id = glGetAttribLocation(program, "point");
+	GLint uv_id = glGetAttribLocation(program, "uv");
+	// Set up cube VAO/buffer
+	glGenVertexArrays(1, &cubeVAO);
+	glBindVertexArray(cubeVAO);
+	glGenBuffers(1, &cubeBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, cubeBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_points), cube_points, GL_STATIC_DRAW);
+	glGenBuffers(1, &cubeIBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeIBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_faces), cube_faces, GL_STATIC_DRAW);
+	glVertexAttribPointer(point_id, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)sizeof(cube_points));
+	glEnableVertexAttribArray(point_id);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	// Set up plane VAO/buffer
+	glGenVertexArrays(1, &planeVAO);
+	glBindVertexArray(planeVAO);
+	glGenBuffers(1, &planeBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, planeBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(plane_points)+sizeof(plane_uvs), NULL, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(plane_points), plane_points);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(plane_points), sizeof(plane_uvs), plane_uvs);
+	glGenBuffers(1, &planeIBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeIBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(plane_tris), plane_tris, GL_STATIC_DRAW);	
+	glVertexAttribPointer(point_id, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)sizeof(cube_points));
+	glEnableVertexAttribArray(point_id);
+	glVertexAttribPointer(uv_id, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(sizeof(cube_points) + sizeof(plane_points)));
+	glEnableVertexAttribArray(uv_id);
+	glActiveTexture(GL_TEXTURE0 + planeTexUnit);
+	glBindTexture(GL_TEXTURE_2D, planeTexName);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void InitSceneObjects() {
@@ -325,47 +362,53 @@ void DrawVectors() {
 }
 
 void Display() {
+	printf("Clearing!\n"); PrintGLErrors();
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glClearColor(0.3f, 0.3f, 0.4f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	// Draw cube
+	printf("Drawing cube!\n"); PrintGLErrors();
+	glBindVertexArray(cubeVAO);
 	glUseProgram(program);
-	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	VertexAttribPointer(program, "point", 3, 0, (void*)0);
 	SetUniform(program, "useTexture", 0);
 	SetUniform(program, "persp", camera.persp);
 	SetUniform(program, "modelview", camera.modelview);
-	for (int i = 0; i < 6; i++) {
-		glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, cube_faces[i]);
-	}
+	//for (int i = 0; i < 6; i++) 
+		//glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, (GLvoid*)(size_t)(i * 4));
+	glDrawElements(GL_LINE_LOOP, 24, GL_UNSIGNED_INT, 0);
+	PrintGLErrors("Cube: drawing elements");
+	glBindVertexArray(0);
 	// Draw floor
+	printf("Drawing floor!\n"); PrintGLErrors();
 	glUseProgram(program);
-	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-	VertexAttribPointer(program, "point", 3, 0, (void*)sizeof(cube_points));
-	VertexAttribPointer(program, "uv", 2, 0, (void*)(sizeof(cube_points) + sizeof(plane_points)));
-	glActiveTexture(GL_TEXTURE0 + planeTexUnit);
-	glBindTexture(GL_TEXTURE_2D, planeTexName);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glBindVertexArray(planeVAO);
 	SetUniform(program, "useTexture", 1);
 	SetUniform(program, "persp", camera.persp);
 	SetUniform(program, "modelview", camera.modelview);
-	SetUniform(program, "textureName", (int)planeTexName);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, plane_tris);
+	SetUniform(program, "textureUnit", (int)planeTexUnit);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 	// Draw other side of floor
+	printf("Drawing other side of floor!\n"); PrintGLErrors();
 	mat4 modelview = camera.modelview * Translate(0, -1, 0) * RotateZ(180.0f) * Translate(0, 1, 0);
 	SetUniform(program, "modelview", modelview);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, plane_tris);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+	glBindVertexArray(0);
+	//glFlush(); return; // KILLED
 	// Draw boids
+	printf("Drawing boids!\n"); PrintGLErrors();
 	for (size_t i = 0; i < flock.size(); i++) {
-		if (running) {
+		if (running) 
 			flock[i].Run();
-		}
 		flock[i].Draw();
 	}
+	PrintGLErrors();
+
 	// Draw rocks
+	printf("Drawing rocks!\n"); PrintGLErrors();
 	for (size_t i = 0; i < rocks.size(); i++) {
 		rocks[i].Draw();
 	}
+
 	// Draw reference vectors
 	if (DRAW_REF_VECTORS) DrawVectors();
 	glFlush();
@@ -375,47 +418,74 @@ int main() {
 	srand((int)time(NULL));
 	if (!glfwInit())
 		return 1;
+	#ifdef __APPLE__
+	glfwWindowHint(GLFW_SAMPLES, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	#endif
 	GLFWwindow* window = glfwCreateWindow(win_width, win_height, "Boids 3D", NULL, NULL);
 	if (!window) {
+		printf("Failed to create GLFW window!\n");
 		glfwTerminate();
 		return 1;
 	}
 	glfwSetWindowPos(window, 100, 100);
 	glfwMakeContextCurrent(window);
+#ifndef __APPLE__
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+#endif
 	PrintGLErrors();
+	printf("Compiling shaders...\n");
 	if (!(program = LinkProgramViaCode(&vertShader, &fragShader)))
 		return 1;
+	printf("Loading plane texture...\n");
 	planeTexUnit = ++texUnit;
 	planeTexName = LoadTexture(sandTexFilename, planeTexUnit);
+	printf("Loading fish meshes...\n");
 	for (size_t i = 0; i < boidObjFilenames.size(); i++) {
 		boid_meshes.push_back(dMesh());
 		texUnit++;
 		boid_meshes[i].Read((char*)boidObjFilenames[i], (char*)boidTexFilenames[i], texUnit, &boidObjTransforms[i]);
-		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", boidObjFilenames[i], boid_meshes[i].points.size(), boid_meshes[i].normals.size(), boid_meshes[i].uvs.size(), boid_meshes[i].triangles.size());
+		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", boidObjFilenames[i], (int)boid_meshes[i].points.size(), (int)boid_meshes[i].normals.size(), (int)boid_meshes[i].uvs.size(), (int)boid_meshes[i].triangles.size());
 	}
+	printf("Loading rock meshes...\n");
 	for (size_t i = 0; i < rockObjFilenames.size(); i++) {
 		rock_meshes.push_back(dMesh());
 		texUnit++;
+		printf("  Creating and pushing back dMesh...\n");
 		rock_meshes[i].Read((char*)rockObjFilenames[i], (char*)rockTexFilenames[i], texUnit);
-		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", rockObjFilenames[i], rock_meshes[i].points.size(), rock_meshes[i].normals.size(), rock_meshes[i].uvs.size(), rock_meshes[i].triangles.size());
+		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", rockObjFilenames[i], (int)rock_meshes[i].points.size(), (int)rock_meshes[i].normals.size(), (int)rock_meshes[i].uvs.size(), (int)rock_meshes[i].triangles.size());
 	}
+	printf("Initializing scene objects...\n");
 	InitSceneObjects();
-	InitVertexBuffer();
-	glfwWindowHint(GLFW_SAMPLES, 4);
+	printf("Initializing buffers...\n");
+	InitBuffers();
 	glfwSetCursorPosCallback(window, MouseMove);
 	glfwSetMouseButtonCallback(window, MouseButton);
 	glfwSetScrollCallback(window, MouseWheel);
 	glfwSetKeyCallback(window, Keyboard);
 	glfwSetWindowSizeCallback(window, Resize);
 	glfwSwapInterval(1);
+	printf("GL vendor: %s\n", glGetString(GL_VENDOR));
+	printf("GL renderer: %s\n", glGetString(GL_RENDERER));
+	printf("GL version: %s\n", glGetString(GL_VERSION));
+	printf("GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	printf("Displaying...\n");
+	printf("Before first frame!\n");
 	while (!glfwWindowShouldClose(window)) {
 		Display();
 		glfwPollEvents();
 		glfwSwapBuffers(window);
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glDeleteBuffers(1, &vBuffer);
+	glDeleteVertexArrays(1, &cubeVAO);	
+	glDeleteBuffers(1, &cubeBuffer);
+	glDeleteBuffers(1, &cubeIBuffer);
+	glDeleteVertexArrays(1, &planeVAO);
+	glDeleteBuffers(1, &planeBuffer);
+	glDeleteBuffers(1, &planeIBuffer);
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }

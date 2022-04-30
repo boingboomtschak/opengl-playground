@@ -1,6 +1,12 @@
 // dMesh.h - Expanded version of Bloomenthal's 3D mesh class
 
+
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <stdio.h>
 #include <vector>
 #include "Camera.h"
@@ -11,6 +17,7 @@ using std::vector;
 class dMesh {
 public:
 	dMesh() { };
+	~dMesh();
 	// obj and tex files
 	char* objFilename = NULL;
 	char* texFilename = NULL;
@@ -21,8 +28,8 @@ public:
 	vector<int3> triangles;
 	// model transform
 	mat4 transform;
-	// vert buffer, tex name, tex unit
-	GLuint vBuffer = 0, texName = 0, texUnit = 0;
+	//     vert array, vert buffer, index buffer, tex name, tex unit
+	GLuint vArray = 0, vBuffer = 0, iBuffer = 0, texName = 0, texUnit = 0;
 	bool preDisp = false;
 	GLuint GetMeshShader();
 	GLuint UseMeshShader();

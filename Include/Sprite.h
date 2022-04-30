@@ -3,7 +3,12 @@
 #ifndef SPRITE_HDR
 #define SPRITE_HDR
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#else
 #include <glad.h>
+#endif
 #include <time.h>
 #include <vector>
 #include "VecMat.h"
