@@ -2,13 +2,8 @@
 
 #define _USE_MATH_DEFINES
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#define GLFW_INCLUDE_NONE
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <time.h>
 #include <vector>
@@ -23,7 +18,9 @@
 
 using std::vector;
 
+GLuint vArray = 0;
 GLuint vBuffer = 0;
+GLuint iBuffer = 0;
 GLuint program = 0;
 
 int win_width = 800;
@@ -194,14 +191,24 @@ void PrintSimInfo(float sec) {
 
 void InitVertexBuffers() {
 	cube.loadBuffer();
+	glGenVertexArrays(1, &vArray);
+	glBindVertexArray(vArray);
 	glGenBuffers(1, &vBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
 	size_t sizePts = meshPts.size() * sizeof(vec3);
 	size_t sizeNorms = meshNorms.size() * sizeof(vec3);
 	size_t bufSize = sizePts + sizeNorms;
 	glBufferData(GL_ARRAY_BUFFER, bufSize, NULL, GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizePts, &meshPts[0]);
-	glBufferSubData(GL_ARRAY_BUFFER, sizePts, sizeNorms, &meshNorms[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizePts, meshPts.data());
+	glBufferSubData(GL_ARRAY_BUFFER, sizePts, sizeNorms, meshNorms.data());
+	glGenBuffers(1, &iBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, meshTris.size()*sizeof(int3), meshTris.data(), GL_STATIC_DRAW);
+	VertexAttribPointer(program, "point", 3, 0, (void*)0);
+	VertexAttribPointer(program, "normal", 3, 0, (void*)(meshPts.size() * sizeof(vec3)));
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void DelVertexBuffers() {
@@ -214,12 +221,10 @@ void Display() {
 	glClear(GL_COLOR_BUFFER_BIT);
 	cube.display(camera);
 	glUseProgram(program);
-	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
+	glBindVertexArray(vArray);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_DEPTH_TEST);
-	VertexAttribPointer(program, "point", 3, 0, (void*)0);
-	VertexAttribPointer(program, "normal", 3, 0, (void*)(meshPts.size() * sizeof(vec3)));
 	SetUniform(program, "light", lightSource);
 	SetUniform(program, "persp", camera.persp);
 	for (size_t i = 0; i < particlesAlive.size(); i++) {
@@ -228,7 +233,7 @@ void Display() {
 			mat4 m = particlesAlive[i].GetModelview();
 			SetUniform(program, "modelview", camera.modelview * m);
 			SetUniform(program, "color", particlesAlive[i].c);
-			glDrawElements(GL_TRIANGLES, 3 * meshTris.size(), GL_UNSIGNED_INT, &meshTris[0]);
+			glDrawElements(GL_TRIANGLES, 3 * meshTris.size(), GL_UNSIGNED_INT, 0);
 		} else {
 			particlesDead.push_back(particlesAlive[i]);
 			particlesAlive.erase(particlesAlive.begin() + i);
@@ -239,8 +244,9 @@ void Display() {
 		mat4 m = particlesDead[i].GetModelview();
 		SetUniform(program, "modelview", camera.modelview * m);
 		SetUniform(program, "color", particlesDead[i].c);
-		glDrawElements(GL_TRIANGLES, 3 * meshTris.size(), GL_UNSIGNED_INT, &meshTris[0]);	
+		glDrawElements(GL_TRIANGLES, 3 * meshTris.size(), GL_UNSIGNED_INT, 0);	
 	}
+	glBindVertexArray(0);
 	glFlush();
 }
 
@@ -248,6 +254,12 @@ int main() {
 	srand((int)time(NULL));
 	if (!glfwInit())
 		return 1;
+	#ifdef __APPLE__
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+  	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	#endif
 	GLFWwindow* window = glfwCreateWindow(win_width, win_height, "DLA Fractal", NULL, NULL);
 	if (!window) {
 		glfwTerminate();

@@ -1,13 +1,8 @@
 // boids-3d.cpp : Devon McKee
-
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#define GLFW_INCLUDE_NONE
-#include <OpenGL/gl3.h>
-#else
-#include <glad.h>
-#endif
 #define _USE_MATH_DEFINES
+
+#include <glad.h>
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <time.h>
 #include <vector>
@@ -424,9 +419,7 @@ int main() {
 	}
 	glfwSetWindowPos(window, 100, 100);
 	glfwMakeContextCurrent(window);
-#ifndef __APPLE__
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-#endif
 	PrintGLErrors();
 	if (!(program = LinkProgramViaCode(&vertShader, &fragShader)))
 		return 1;

@@ -15,7 +15,7 @@
 	if (format) {                                      \
 		va_list ap;                                    \
 		va_start(ap, format);                          \
-		_vsnprintf(buffer, maxBufferSize, format, ap); \
+		vsnprintf(buffer, maxBufferSize, format, ap);  \
 		va_end(ap);                                    \
 	}                                                  \
 }

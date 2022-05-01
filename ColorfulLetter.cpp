@@ -1,12 +1,6 @@
 // 4-ColorfulLetter.cpp: draw multiple triangles to form a colorful letter
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#define GLFW_INCLUDE_NONE
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
 #include <glfw3.h>
 #include <stdio.h>
 #include "GLXtras.h"
@@ -167,9 +161,7 @@ int main() {
 		return 1;
 	}
 	glfwMakeContextCurrent(window);
-#ifndef __APPLE__
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-#endif
 	printf("GL version: %s\n", glGetString(GL_VERSION));
 	PrintGLErrors();
 	if (!(program = LinkProgramViaCode(&vertexShader, &pixelShader)))

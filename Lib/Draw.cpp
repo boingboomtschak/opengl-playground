@@ -1,7 +1,7 @@
 // Draw.cpp - various draw operations (c) 2019-2022 Jules Bloomenthal
 
 #include <glad.h>
-#include <gl/glu.h>
+#include <GL/glu.h>
 #include "Draw.h"
 #include "GLXtras.h"
 #include "Misc.h"
@@ -346,7 +346,7 @@ void LineStrip(int nPoints, vec3 *points, vec3 &color, float opacity, float widt
 	glBufferSubData(GL_ARRAY_BUFFER, 0, pSize, points);
 	glBufferSubData(GL_ARRAY_BUFFER, pSize, pSize, &colors[0]);
 	VertexAttribPointer(drawShader, "position", 3, 0, (void *) 0);
-	VertexAttribPointer(drawShader, "color", 3, 0, (void *) pSize);
+	VertexAttribPointer(drawShader, "color", 3, 0, (void *)(size_t)pSize);
 	SetUniform(drawShader, "fadeToCenter", 0);
 	SetUniform(drawShader, "opacity", opacity);
 	glLineWidth(width);

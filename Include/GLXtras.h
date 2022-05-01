@@ -3,13 +3,7 @@
 #ifndef GL_XTRAS_HDR
 #define GL_XTRAS_HDR
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#define GLFW_INCLUDE_NONE
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
 #include "VecMat.h"
 
 // Print Info

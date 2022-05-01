@@ -13,9 +13,10 @@
 
 // Misc
 
+/*
 bool KeyDown(int button) {
-	static int nShortBits = 8*sizeof(SHORT);
-	static SHORT shortMSB = 1 << (nShortBits-1);
+	static int nShortBits = 8*sizeof(short);
+	static short shortMSB = 1 << (nShortBits-1);
 	return (GetKeyState(button) & shortMSB) != 0;
 }
 
@@ -29,7 +30,8 @@ std::string GetDirectory() {
 	for (size_t i = 0; i < strlen(buf); i++)
 		if (buf[i] == '\\') buf[i] = '/';
 	return std::string(buf)+std::string("/");
-}
+} 
+*/
 
 time_t FileModified(const char *name) {
 	struct stat info;

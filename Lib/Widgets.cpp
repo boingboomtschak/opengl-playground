@@ -2,7 +2,7 @@
 
 #include <glad.h>
 #include <GLFW/glfw3.h>
-#include <gl/glu.h>
+#include <GL/glu.h>
 #include "Draw.h"
 #include "GLXtras.h"
 #include "Letters.h"

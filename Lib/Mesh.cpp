@@ -8,7 +8,6 @@
 #include <assert.h>
 #include <iostream>
 #include <fstream>
-#include <direct.h>
 #include <float.h>
 #include <string.h>
 #include <cstdlib>
@@ -99,7 +98,9 @@ void MeshFramer::Wheel(double spin, bool shift) {
 
 void MeshFramer::Draw(mat4 fullview) {
 	UseDrawShader(ScreenMode());
-	arcball.Draw(Control(), &mesh->transform);
+	// See Misc.cpp for issues with Control() on macOS
+	//arcball.Draw(Control(), &mesh->transform);
+	arcball.Draw(false, &mesh->transform);
 	UseDrawShader(fullview);
 	Disk(mesh->frameDown.origin, 9, arcball.pink);
 }
@@ -111,7 +112,7 @@ GLuint meshShader = 0;
 // Mesh Shaders
 
 const char *meshVertexShader = R"(
-	#version 330
+	#version 410 core
 	layout (location = 0) in vec3 point;
 	layout (location = 1) in vec3 normal;
 	layout (location = 2) in vec2 uv;
@@ -135,7 +136,7 @@ const char *meshVertexShader = R"(
 )";
 
 const char *meshPixelShader = R"(
-	#version 330
+	#version 410 core
 	in vec3 vPoint;
 	in vec3 vNormal;
 	in vec2 vUv;
@@ -195,7 +196,7 @@ GLuint UseMeshShader() {
 
 void Enable(int id, int ncomps, int offset) {
 	glEnableVertexAttribArray(id);
-	glVertexAttribPointer(id, ncomps, GL_FLOAT, GL_FALSE, 0, (void *) offset);
+	glVertexAttribPointer(id, ncomps, GL_FLOAT, GL_FALSE, 0, (void *)(size_t)offset);
 }
 
 void Mesh::Buffer() {
@@ -536,7 +537,7 @@ int ReadSTL(const char *filename, vector<VertexSTL> &vertices) {
 					printf("\ncan't read triangle %d normal\n", nTriangle);
 				for (int k = 0; k < 3; k++)
 					if (fread(&v[k].x, sizeof(float), 3, in) != 3)
-						printf("\ncan't read vid %d\n", verts->size());
+						printf("\ncan't read vid %d\n", (int)verts->size());
 				vec3 a(v[1]-v[0]), b(v[2]-v[1]);
 				vec3 ntmp = cross(a, b);
 				if (dot(ntmp, n) < 0) {

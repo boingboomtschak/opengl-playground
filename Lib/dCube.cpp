@@ -27,16 +27,27 @@ namespace {
 }
 
 void dCube::loadBuffer() {
+	int shader = getCubeShader();
+	glGenVertexArrays(1, &vArray);
+	glBindVertexArray(vArray);
 	glGenBuffers(1, &vBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
 	size_t sizePts = points.size() * sizeof(vec3);
 	glBufferData(GL_ARRAY_BUFFER, sizePts, NULL, GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizePts, &points[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizePts, points.data());
+	glGenBuffers(1, &iBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, faces.size()*sizeof(int4), faces.data(), GL_STATIC_DRAW);
+	VertexAttribPointer(shader, "point", 3, 0, (void*)0);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void dCube::unloadBuffer() {
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glDeleteVertexArrays(1, &vArray);
 	glDeleteBuffers(1, &vBuffer);
+	glDeleteBuffers(1, &iBuffer);
 }
 
 void dCube::display(Camera camera, mat4 *m) {
@@ -44,17 +55,17 @@ void dCube::display(Camera camera, mat4 *m) {
 		fprintf(stderr, "dCube: Cube buffer not loaded into memory\n");
 		return;
 	}
-	glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
+	glBindVertexArray(vArray);
 	int shader = useCubeShader();
-	VertexAttribPointer(shader, "point", 3, 0, (void*)0);
 	SetUniform(shader, "persp", camera.persp);
 	mat4 modelview = camera.modelview;
 	if (m != NULL) modelview = modelview * *m;
 	modelview = modelview * transform;
 	SetUniform(shader, "modelview", modelview);
-	for (size_t i = 0; i < 6; i++) {
-		glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, &faces[i]);
-	}
+	for (size_t i = 0; i < 6; i++) 
+		glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, (GLvoid*)(i * sizeof(int4)));
+	//glDrawElements(GL_LINE_LOOP, 25, GL_UNSIGNED_INT, 0);
+	glBindVertexArray(0);
 }
 
 GLuint dCube::getCubeShader() {

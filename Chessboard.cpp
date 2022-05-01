@@ -1,12 +1,7 @@
 // 2-ClearScreen.cpp - use OpenGL shader architecture
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#define GLFW_INCLUDE_NONE
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
+#define GLFW_INCLUDE_NONE
 #include <glfw3.h>											// GL toolkit
 #include <stdio.h>											// printf, etc.
 #include "GLXtras.h"										// convenience routines
@@ -103,11 +98,9 @@ int main() {												// application entry
 	if (!w)
 		return AppError("can't open window");
 	glfwMakeContextCurrent(w);
-#ifndef __APPLE__
 	gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);	// set OpenGL extensions
 	// following line will not compile if glad.h < OpenGLv4.3
-	glDebugMessageCallback(GlslError, NULL);
-#endif
+	//glDebugMessageCallback(GlslError, NULL);
 	// REQUIREMENT 2) build shader program
 	if (!(program = LinkProgramViaCode(&vertexShader, &pixelShader)))
 		return AppError("can't link shader program");

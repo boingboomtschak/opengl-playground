@@ -1,12 +1,6 @@
 // Scene.cpp - camera and meshes
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#define GLFW_INCLUDE_NONE
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
 #include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <time.h>
@@ -109,7 +103,7 @@ void Scene::DeleteMesh() {
 	char buf[501];
 	int n = -1;
 	printf("delete mesh number: ");
-	gets_s(buf);
+	gets(buf);
 	if (sscanf(buf, "%i", &n) == 1 && n >= 0 && n < (int) meshes.size()) {
 		printf("deleted mesh[%i]\n", n);
 		meshes.erase(meshes.begin()+n);

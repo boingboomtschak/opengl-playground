@@ -1,11 +1,6 @@
 // Numbers.cpp - display non-negative integers as grayscale text
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
 #include "Draw.h"    // ScreenPoint
 #include "GLXtras.h" // LinkProgramViaCode, VertexAttribPointer, SetUniform
 #include "Misc.h"    // LoadTexture
