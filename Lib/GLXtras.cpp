@@ -1,7 +1,5 @@
 // GLXtras.cpp - GLSL support (c) 2019-2022 Jules Bloomenthal
 
-#include <glad.h>
-#include <gl/glu.h>
 #include "GLXtras.h"
 #include <stdio.h>
 #include <string.h>
@@ -9,6 +7,17 @@
 #include <vector>
 
 // Print OpenGL, GLSL Details
+
+const char* getErrorString(GLenum err) {
+	switch(err) {
+		case GL_INVALID_ENUM: return "GL_INVALID_ENUM";
+		case GL_INVALID_VALUE: return "GL_INVALID_VALUE";
+		case GL_INVALID_OPERATION: return "GL_INVALID_OPERATION";
+		case GL_OUT_OF_MEMORY: return "GL_OUT_OF_MEMORY";
+		case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
+		default: return "UNKNOWN_GL_ERROR_CODE";
+	}
+}
 
 int PrintGLErrors(const char *title) {
 	char buf[1000];
@@ -18,7 +27,7 @@ int PrintGLErrors(const char *title) {
 		GLenum n = glGetError();
 		if (n == GL_NO_ERROR)
 			break;
-		sprintf(buf+strlen(buf), "%s%s", !nErrors++? "" : ", ", gluErrorString(n));
+		sprintf(buf+strlen(buf), "%s%s", !nErrors++? "" : ", ", getErrorString(n));
 			// do not call Debug() while looping through errors, so accumulate in buf
 	}
 	if (nErrors) {
@@ -182,6 +191,8 @@ GLuint LinkProgramViaCode(const char **vertexCode,
 	return LinkProgram(vshader, tcshader, teshader, gshader, pshader);
 }
 
+// Apple devices are stuck at 4.1 core, so GL_COMPUTE_SHADER undefined
+#ifndef __APPLE__
 void LinkProgramViaCode(GLuint computeProgram, const char **computeCode) {
 	GLuint computeShader = CompileShaderViaCode(computeCode, GL_COMPUTE_SHADER);
 	glAttachShader(computeProgram, computeShader);
@@ -211,6 +222,7 @@ GLuint LinkProgramViaFile(const char *computeShaderFile) {
 	if (status == GL_FALSE) PrintProgramLog(program);
 	return program;
 }
+#endif
 
 GLuint LinkProgram(GLuint vshader, GLuint pshader) {
 	return LinkProgram(vshader, 0, 0, 0, pshader);
@@ -267,7 +279,7 @@ void WriteProgramBinary(GLuint program, const char *filename) {
 	GLenum binaryFormat = 0;
 	GLsizei sizeBinary = 0, sizeEnum = sizeof(GLenum);
 	glGetProgramiv(program, GL_PROGRAM_BINARY_LENGTH, &sizeBinary);
-	std::vector<BYTE> data(sizeBinary);
+	std::vector<char> data(sizeBinary);
 	glGetProgramBinary(program, sizeBinary, NULL, &binaryFormat, &data[0]);
 	FILE *out = fopen(filename, "wb");
 	fwrite(&binaryFormat, sizeEnum, 1, out);
@@ -281,7 +293,7 @@ bool ReadProgramBinary(GLuint program, const char *filename) {
 		fseek(in, 0, SEEK_END);
 		long filesize = ftell(in);
 		int sizeEnum = sizeof(GLenum), sizeBinary = filesize-sizeEnum;
-		std::vector<BYTE> data(sizeBinary);
+		std::vector<char> data(sizeBinary);
 		GLenum binaryFormat;
 		fseek(in, 0, 0);
 		fread((char *) &binaryFormat, sizeEnum, 1, in);

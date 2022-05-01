@@ -3,6 +3,7 @@ class-resources/
 Debug/
 Release/
 x64/
+macos/
 *.sln
 *.vcxproj
 *.filters
@@ -10,3 +11,4 @@ x64/
 *.swp
 *.un~
 *.DS_Store
+*.o
