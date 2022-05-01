@@ -1,4 +1,4 @@
-// Camera.h
+// Camera.h (c) 2019-2022 Jules Bloomenthal
 
 #ifndef CAMERA_HDR
 #define CAMERA_HDR

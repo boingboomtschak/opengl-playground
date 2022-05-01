@@ -31,7 +31,7 @@ GLuint cubeVAO, planeVAO;
 
 vector<const char*> boidObjFilenames = { "./objects/fish/fish1.obj", "./objects/fish/fish2.obj", "./objects/fish/fish3.obj", "./objects/fish/fish4.obj" };
 vector<const char*> boidTexFilenames = { "./textures/fish/fish1.tga", "./textures/fish/fish2.tga", "./textures/fish/fish3.tga", "./textures/fish/fish4.tga" };
-vector<mat4> boidObjTransforms = { RotateY(-90.0f), mat4(), RotateY(90.0f) * RotateX(-90.0f), mat4() };
+vector<mat4> boidObjTransforms = { mat4(), mat4(), mat4(), mat4()};
 vector<const char*> rockObjFilenames = { "./objects/rock/rock1.obj", "./objects/rock/rock2.obj", "./objects/rock/rock3.obj" };
 vector<const char*> rockTexFilenames = { "./textures/rock/rock1.tga", "./textures/rock/rock2.tga", "./textures/rock/rock3.tga" };
 vector<const char*> rockNormFilenames = { "./textures/rock/rock1_normal.tga", "./textures/rock/rock2_normal.tga", "./textures/rock/rock3_normal.tga" };
@@ -79,7 +79,7 @@ struct Boid {
 	int mesh;
 	float size = BOID_SIZE + (rand_float(-1, 1) * BOID_SIZE_VARIANCE);
 	Boid(vec3 xyz, vec3 nv) {
-		p = xyz, v = nv, mesh = rand() % boidObjFilenames.size(); 
+		p = xyz; v = nv; mesh = rand() % boidObjFilenames.size();
 	}
 	void FindNeighbors() {
 		for (size_t i = 0; i < flock.size(); i++) {
@@ -199,7 +199,7 @@ struct Boid {
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_CULL_FACE);
+		//glEnable(GL_CULL_FACE);
 		mat4 trans = Translate(p);
 		mat4 scale = Scale(size);
 		mat4 orient = Orientation(v, vec3(0.0f, 1.0f, 0.0f));
@@ -217,10 +217,6 @@ struct Rock {
 	}
 	void Draw() {
 		rock_meshes[mesh].PreDisplay();
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_CULL_FACE);
 		mat4 trans = Translate(p);
 		mat4 scale = Scale(size);
 		mat4 rot = RotateX(r.x) * RotateY(r.y) * RotateZ(r.z);
@@ -262,10 +258,8 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	if (key == GLFW_KEY_ESCAPE || key == GLFW_KEY_Q) {
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
 	}
-	if (key == GLFW_KEY_J)
-		running = false;
-	if (key == GLFW_KEY_K)
-		running = true;
+	if (key == GLFW_KEY_J && action == GLFW_PRESS)
+		running = !running;
 }
 
 bool Shift(GLFWwindow* w) {
@@ -362,12 +356,14 @@ void DrawVectors() {
 }
 
 void Display() {
-	printf("Clearing!\n"); PrintGLErrors();
-	glClear(GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_DEPTH_TEST);
+	//glEnable(GL_CULL_FACE);
+	//glCullFace(GL_BACK);
 	glClearColor(0.3f, 0.3f, 0.4f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	// Draw cube
-	printf("Drawing cube!\n"); PrintGLErrors();
 	glBindVertexArray(cubeVAO);
 	glUseProgram(program);
 	SetUniform(program, "useTexture", 0);
@@ -375,11 +371,10 @@ void Display() {
 	SetUniform(program, "modelview", camera.modelview);
 	//for (int i = 0; i < 6; i++) 
 		//glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, (GLvoid*)(size_t)(i * 4));
-	glDrawElements(GL_LINE_LOOP, 24, GL_UNSIGNED_INT, 0);
-	PrintGLErrors("Cube: drawing elements");
+	glDrawElements(GL_LINE_LOOP, sizeof(cube_faces)/sizeof(GLuint), GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
+	PrintGLErrors("Cube");
 	// Draw floor
-	printf("Drawing floor!\n"); PrintGLErrors();
 	glUseProgram(program);
 	glBindVertexArray(planeVAO);
 	SetUniform(program, "useTexture", 1);
@@ -388,27 +383,23 @@ void Display() {
 	SetUniform(program, "textureUnit", (int)planeTexUnit);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 	// Draw other side of floor
-	printf("Drawing other side of floor!\n"); PrintGLErrors();
 	mat4 modelview = camera.modelview * Translate(0, -1, 0) * RotateZ(180.0f) * Translate(0, 1, 0);
 	SetUniform(program, "modelview", modelview);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
-	//glFlush(); return; // KILLED
+	PrintGLErrors("Floor");
 	// Draw boids
-	printf("Drawing boids!\n"); PrintGLErrors();
 	for (size_t i = 0; i < flock.size(); i++) {
 		if (running) 
 			flock[i].Run();
 		flock[i].Draw();
 	}
-	PrintGLErrors();
-
+	PrintGLErrors("Boids");
 	// Draw rocks
-	printf("Drawing rocks!\n"); PrintGLErrors();
 	for (size_t i = 0; i < rocks.size(); i++) {
 		rocks[i].Draw();
 	}
-
+	PrintGLErrors("Rocks");
 	// Draw reference vectors
 	if (DRAW_REF_VECTORS) DrawVectors();
 	glFlush();
@@ -418,8 +409,8 @@ int main() {
 	srand((int)time(NULL));
 	if (!glfwInit())
 		return 1;
-	#ifdef __APPLE__
 	glfwWindowHint(GLFW_SAMPLES, 4);
+	#ifdef __APPLE__
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
   	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -437,20 +428,16 @@ int main() {
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 #endif
 	PrintGLErrors();
-	printf("Compiling shaders...\n");
 	if (!(program = LinkProgramViaCode(&vertShader, &fragShader)))
 		return 1;
-	printf("Loading plane texture...\n");
 	planeTexUnit = ++texUnit;
 	planeTexName = LoadTexture(sandTexFilename, planeTexUnit);
-	printf("Loading fish meshes...\n");
 	for (size_t i = 0; i < boidObjFilenames.size(); i++) {
 		boid_meshes.push_back(dMesh());
 		texUnit++;
 		boid_meshes[i].Read((char*)boidObjFilenames[i], (char*)boidTexFilenames[i], texUnit, &boidObjTransforms[i]);
 		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", boidObjFilenames[i], (int)boid_meshes[i].points.size(), (int)boid_meshes[i].normals.size(), (int)boid_meshes[i].uvs.size(), (int)boid_meshes[i].triangles.size());
 	}
-	printf("Loading rock meshes...\n");
 	for (size_t i = 0; i < rockObjFilenames.size(); i++) {
 		rock_meshes.push_back(dMesh());
 		texUnit++;
@@ -458,9 +445,7 @@ int main() {
 		rock_meshes[i].Read((char*)rockObjFilenames[i], (char*)rockTexFilenames[i], texUnit);
 		printf("'%s' : %i vertices, %i normals, %i uvs, %i triangles\n", rockObjFilenames[i], (int)rock_meshes[i].points.size(), (int)rock_meshes[i].normals.size(), (int)rock_meshes[i].uvs.size(), (int)rock_meshes[i].triangles.size());
 	}
-	printf("Initializing scene objects...\n");
 	InitSceneObjects();
-	printf("Initializing buffers...\n");
 	InitBuffers();
 	glfwSetCursorPosCallback(window, MouseMove);
 	glfwSetMouseButtonCallback(window, MouseButton);
@@ -472,14 +457,11 @@ int main() {
 	printf("GL renderer: %s\n", glGetString(GL_RENDERER));
 	printf("GL version: %s\n", glGetString(GL_VERSION));
 	printf("GLSL version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-	printf("Displaying...\n");
-	printf("Before first frame!\n");
 	while (!glfwWindowShouldClose(window)) {
 		Display();
 		glfwPollEvents();
 		glfwSwapBuffers(window);
 	}
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glDeleteVertexArrays(1, &cubeVAO);	
 	glDeleteBuffers(1, &cubeBuffer);
 	glDeleteBuffers(1, &cubeIBuffer);

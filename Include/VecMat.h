@@ -1,4 +1,5 @@
 // VecMat.h: 2D, 3D, 4D vector classes, 3x3 and 4x4 matrix classes
+// (c) 2019-2022 Jules Bloomenthal
 
 #ifndef VEC_MAT_HDR
 #define VEC_MAT_HDR
@@ -14,7 +15,7 @@ struct int2 {
 	int2(int i1, int i2) : i1(i1), i2(i2) { }
 	int &operator [] (int i) { return *(&i1+i); }
 	const int operator [] (int i) const { return *(&i1+i); }
-	bool operator == (const int2& rhs) { return this->i1 == rhs.i1 && this->i2 == rhs.i2; }
+	bool operator == (const int2 &rhs) { return this->i1 == rhs.i1 && this->i2 == rhs.i2; }
 	int2 operator + (const int2 &v) const { return int2(i1+v.i1, i2+v.i2); }
 	int2 operator - (const int2 &v) const { return int2(i1-v.i1, i2-v.i2); }
 };
@@ -26,7 +27,7 @@ struct int3 {
 	int3(int i1, int i2, int i3) : i1(i1), i2(i2), i3(i3) { }
 	int &operator [] (int i) { return *(&i1+i); }
 	const int operator [] (int i) const { return *(&i1+i); }
-	bool operator == (const int3& rhs) { return this->i1 == rhs.i1 && this->i2 == rhs.i2 && this->i3 == rhs.i3; }
+	bool operator == (const int3 &rhs) { return this->i1 == rhs.i1 && this->i2 == rhs.i2 && this->i3 == rhs.i3; }
 	int3 operator + (const int3 &v) const { return int3(i1+v.i1, i2+v.i2, i3+v.i3); }
 	int3 operator - (const int3 &v) const { return int3(i1-v.i1, i2-v.i2, i3-v.i3); }
 };

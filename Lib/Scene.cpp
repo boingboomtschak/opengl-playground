@@ -64,7 +64,7 @@ void Scene::SaveScene(const char *filename, CameraAB camera) {
 	WriteMatrix(file, camera.modelview);
 	for (size_t i = 0; i < meshes.size(); i++) {
 		Mesh &mesh = meshes[i];
-		fprintf(file, "%s\n", mesh.filename.c_str());
+		fprintf(file, "%s\n", mesh.objFilename.c_str());
 		WriteMatrix(file, mesh.transform);
 	}
 	fclose(file);
@@ -102,14 +102,14 @@ void Scene::ListScene() {
 	int nmeshes = meshes.size();
 	printf("%i meshes:\n", nmeshes);
 	for (int i = 0; i < nmeshes; i++)
-		printf("  %i: %s\n", i, meshes[i].filename.c_str());
+		printf("  %i: %s\n", i, meshes[i].objFilename.c_str());
 }
 
 void Scene::DeleteMesh() {
 	char buf[501];
 	int n = -1;
 	printf("delete mesh number: ");
-	gets(buf);
+	gets_s(buf);
 	if (sscanf(buf, "%i", &n) == 1 && n >= 0 && n < (int) meshes.size()) {
 		printf("deleted mesh[%i]\n", n);
 		meshes.erase(meshes.begin()+n);

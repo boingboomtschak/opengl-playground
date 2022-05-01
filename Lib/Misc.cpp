@@ -1,5 +1,6 @@
-// Misc.cpp
+// Misc.cpp (c) 2019-2022 Jules Bloomenthal
 
+#include <glad.h>
 #include <stdio.h>
 #include <float.h>
 #include <stdlib.h>
@@ -12,11 +13,9 @@
 
 // Misc
 
-/* dependent on windows.h
-
 bool KeyDown(int button) {
-	static int nShortBits = 8*sizeof(short);
-	static short shortMSB = 1 << (nShortBits-1);
+	static int nShortBits = 8*sizeof(SHORT);
+	static SHORT shortMSB = 1 << (nShortBits-1);
 	return (GetKeyState(button) & shortMSB) != 0;
 }
 
@@ -31,7 +30,6 @@ std::string GetDirectory() {
 		if (buf[i] == '\\') buf[i] = '/';
 	return std::string(buf)+std::string("/");
 }
-*/
 
 time_t FileModified(const char *name) {
 	struct stat info;
@@ -179,8 +177,8 @@ void LoadTexture(unsigned char *pixels, int width, int height, int bpp, GLuint t
 	else
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//	if (bpp == 4)
-//		delete [] temp;
+	// if (bpp == 4)
+	//	delete [] temp;
 }
 
 GLuint LoadTexture(const char *filename, GLuint textureUnit, bool mipmap) {
@@ -216,11 +214,11 @@ GLuint LoadTargaTexture(const char *targaFilename, GLuint textureUnit, bool mipm
 
 // Bump map
 
-unsigned char *GetNormals(unsigned char *depthPixels, int width, int height) {
+unsigned char *GetNormals(unsigned char *depthPixels, int width, int height, float depthIncline) {
 	class Helper { public:
 		unsigned char *depthPixels, *bumpPixels;
-		int width, height;
-		float xscale, yscale;
+		int width = 0, height = 0;
+		float xscale = 1, yscale = 1, depthIncline = 1;
 		float GetDepth(int i, int j) {
 			unsigned char *v = depthPixels+3*(j*width+i); // depth pixels presumed 3 bytes/pixel, with r==g==b
 			return ((float) *v)/255.f;
@@ -231,18 +229,18 @@ unsigned char *GetNormals(unsigned char *depthPixels, int width, int height) {
 		vec3 Normal(int i, int j) {
 			int i1 = i > 0? i-1 : i, i2 = i < width-1? i+1 : i;
 			int j1 = j > 0? j-1 : j, j2 = j < height-1? j+1 : j;
-			vec3 vx((float)(i2-i1)*xscale, 0, Dz(i1, j, i2, j));
-			vec3 vy(0, (float)(j2-j1)*yscale, Dz(i, j1, i, j2));
+			vec3 vx((float)(i2-i1)*xscale, 0, depthIncline*Dz(i1, j, i2, j));
+			vec3 vy(0, (float)(j2-j1)*yscale, depthIncline*Dz(i, j1, i, j2));
 			vec3 v = cross(vx, vy);
 			v = normalize(v);
 			if (v.z < 0) printf("Normal: v=(%3.2f, %3.2f, %3.2f)!\n", v.x, v.y, v.z);
 			return v; // v.z < 0? -v : v;
 		}
-		Helper(unsigned char *depthPixels, int width, int height) :
-			depthPixels(depthPixels), width(width), height(height) {
-				// xscale/yscale assumes quad maps to canonical (-1,-1) to (1,1)
-				xscale = 2/(float)width;
-				yscale = 2/(float)height;
+		Helper(unsigned char *depthPixels, int width, int height, float depthIncline) :
+			depthPixels(depthPixels), width(width), height(height), depthIncline(depthIncline) {
+				// xscale/yscale assumes quad maps to canonical (0,0) to (1,1)
+				xscale = 1/(float)width;
+				yscale = 1/(float)height;
 				int bytesPerPixel = 3, bytesPerImage = width*height*bytesPerPixel; // returned pixels 3 bytes/pixel
 				unsigned char *n = new unsigned char[bytesPerImage];
 				bumpPixels = n;
@@ -254,6 +252,6 @@ unsigned char *GetNormals(unsigned char *depthPixels, int width, int height) {
 						*n++ = (unsigned char) (255.f*v[2]);      // blu in [0,1]
 					}
 		}
-	} h(depthPixels, width, height); // , pixelScale);
+	} h(depthPixels, width, height, depthIncline);
 	return h.bumpPixels;
 }

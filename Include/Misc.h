@@ -1,14 +1,9 @@
-// Misc.h
+// Misc.h (c) 2019-2022 Jules Bloomenthal
 
 #ifndef MISC_HDR
 #define MISC_HDR
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
 #include <string.h>
 #include <time.h>
 #include "VecMat.h"
@@ -61,13 +56,14 @@ GLuint LoadTargaTexture(const char *targaFilename, GLuint textureUnit, bool mipm
 
 GLuint LoadTexture(unsigned char *pixels, int width, int height, int bpp, GLuint textureUnit, bool bgr = false, bool mipmap = true);
 	// bpp is bytes per pixel
-	// load pixels as given texture unit; return texture name (ID)
+	// load pixels into given texture unit; return texture name (id)
 
 void LoadTexture(unsigned char *pixels, int width, int height, int bpp, GLuint textureUnit, GLuint textureName, bool bgr, bool mipmap);
 
 // Bump map
-unsigned char *GetNormals(unsigned char *depthPixels, int width, int height);
+unsigned char *GetNormals(unsigned char *depthPixels, int width, int height, float depthIncline = 1);
 	// return normal pixels (3 bytes/pixel) that correspond with depth pixels (presumed 3 bytes/pixel)
 	// the memory returned should be freed by the caller
+	// depthIncline is ratio of distance represented by z range 0-1 to distance represented by width of image
 
 #endif

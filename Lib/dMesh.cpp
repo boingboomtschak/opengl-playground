@@ -1,7 +1,5 @@
 #include <stdio.h>
 #include <vector>
-#include "Camera.h"
-#include "VecMat.h"
 #include "Mesh.h"
 #include "dMesh.h"
 #include "GLXtras.h"
@@ -91,15 +89,15 @@ void dMesh::Buffer() {
     size_t sizeUvs = uvs.size() * sizeof(vec2);
     size_t bufSize = sizePts + sizeNorms + sizeUvs;
     glBufferData(GL_ARRAY_BUFFER, bufSize, NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizePts, &points[0]);
-    glBufferSubData(GL_ARRAY_BUFFER, sizePts, sizeNorms, &normals[0]);
-    glBufferSubData(GL_ARRAY_BUFFER, sizePts + sizeNorms, sizeUvs, &uvs[0]);
-    glGenBuffers(1, &iBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(int3), triangles.data(), GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizePts, points.data());
+    glBufferSubData(GL_ARRAY_BUFFER, sizePts, sizeNorms, normals.data());
+    glBufferSubData(GL_ARRAY_BUFFER, sizePts + sizeNorms, sizeUvs, uvs.data());
     VertexAttribPointer(shader, "point", 3, 0, (void*)0);
     VertexAttribPointer(shader, "normal", 3, 0, (void*)sizePts);
     VertexAttribPointer(shader, "uv", 2, 0, (void*)(sizePts + sizeNorms));
+    glGenBuffers(1, &iBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(int3), triangles.data(), GL_STATIC_DRAW);
     if (texUnit && texName) {
         glActiveTexture(GL_TEXTURE0 + texUnit);
         glBindTexture(GL_TEXTURE_2D, texName);
@@ -135,8 +133,9 @@ void dMesh::Display(Camera camera, mat4* m) {
         preDisp = false;
     }
     SetUniform(shader, "useTexture", texUnit ? 1 : 0);
+    //SetUniform(shader, "useTexture", 0);
     if (texUnit) 
-        SetUniform(shader, "textureName", (int)texUnit);
+        SetUniform(shader, "textureName", (int)texName);
     SetUniform(shader, "persp", camera.persp);
     SetUniform(shader, "modelview", camera.modelview * *m * transform);
     glDrawElements(GL_TRIANGLES, 3 * numTris, GL_UNSIGNED_INT, 0);
@@ -148,7 +147,7 @@ bool dMesh::Read(char* objFilename, mat4* m) {
         fprintf(stderr, "dMesh : Can't read obj '%s'\n", objFilename);
         return false;
     }
-    Normalize(points, .8f);
+    Normalize(points, 1.0f);
     Buffer();
     if (m)
         transform = *m;

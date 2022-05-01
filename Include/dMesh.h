@@ -1,5 +1,7 @@
 // dMesh.h - Expanded version of Bloomenthal's 3D mesh class
 
+#ifndef DMESH_HDR
+#define DMESH_HDR
 
 #ifdef __APPLE__
 #define GL_SILENCE_DEPRECATION
@@ -39,3 +41,5 @@ public:
 	bool Read(char* objFilename, mat4* m = NULL);
 	bool Read(char* objFilename, char* texFilename, int texUnit, mat4* m = NULL);
 };
+
+#endif

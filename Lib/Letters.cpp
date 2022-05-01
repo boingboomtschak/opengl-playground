@@ -1,11 +1,7 @@
 // Letters.cpp - display non-negative alphabet characters as grayscale text
+// (c) 2019-2022 Jules Bloomenthal
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
 #include "Draw.h"
 #include "GLXtras.h"
 #include "Misc.h"
@@ -45,6 +41,19 @@ FFFF7A000000B9FFFFFFFFB9005CFFFFFF7A007AFFFF3B001DFFFFFF9B0000FFFF3B00D8FFFFB900
 7A000000009BFFFFFFFF3B00000000000000FFFFFFFFFFFF5C0000009B5C1DFF1D000000000000B9FFFFFF3B00000000000000005CFFD80000000000000000009BFFFFFF5C0000009B5C3BFFB90000001DFF00000000B9FF7A00000000000000B9FFFFFFFF9B000000000000005C000000B9FF7A0000003B9B00000000001DFFFFFFD8000000D8FFFFFF9B0000000000009BFFD8000000005CFFFFFF5C0000007AFFFFFFFF1D0000000000005CFFFFFFFFFF5C0000007AFFFFFF3B0000000000001DFFFFFFFFFFFF3B000000B900B9FFB9000000000000000000D81D00003BFFFFFF0000000000000000B9FF9B00000000000000007AFF5C000000003B0000007AFF5C0000005C3B0000009BFF9B0000005CFF9B00000000000000B9\
 FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
 
+// next 10 lines each with 82 grayscale values, each value represented as two hexadecimal characters
+const char *numberImage = "\
+FFEC7A110034C3FFFFDD98340047FFFFFFFFA723002389FFFFFF000000117AFFFFFFFFFFC3000089FFFF890000000000FFFFFFFFA734000089FF89000000000000C3FFDD57000023A7FFFFEC69110034B5FF\
+FF470000000011DDFF5700000047FFFFFF980000000000B5FFFF000000000098FFFFFFFF23000089FFFF890000000000FFFFFF690000000089FF89000000000000C3FF340000000000D0FF470000000000DD\
+D00011DDFF690069FF987AB50047FFFFFFEC47DDFF89007AFFFFFFFFFF980047FFFFFF89007A0089FFFF8900C3FFFFFFFFFFC30023B5FFFFFFFFFFFFFFFFEC1123FFFF0034ECFFA700C3DD0023DDFF890089\
+890098FFC3340034FFFFFFC30047FFFFFFFFFFFFFFB50089FFFFFFFFFF890089FFFFDD0057C30089FFFF8900C3FFFFFFFFFF7A00B5FFFFFFFFFFFFFFFFFF890089FFFF2311B5DD3411ECC30023ECFFA70047\
+8900A74700000000FFFFFFC30047FFFFFFFFFFFFFF5700C3FFFFFF00000057ECFFFF4711DDC30089FFFF8900000034B5FFFF47007A230034D0FFFFFFFFEC1111ECFFFFD023000000D0FFFF11000000000047\
+8900000023B50000FFFFFFC30047FFFFFFFFFFFF980069FFFFFFFF0000000069FFB50098FFC30089FFFF890000000000C3FF47000000000011FFFFFFFF890089FFFFFFB51123230034ECFFD03400237A0047\
+89001189FFDD0047FFFFFFC30047FFFFFFFFFF980069FFFFFFFFFFFFFFC31100DD4700000000000000FFFFFFFFEC7A0089FF470069ECEC3400C3FFFFEC1111ECFFFFEC1123ECEC570098FFFFFFFFFFB5007A\
+B50034DDEC57007AFFFFFFC30047FFFFFFFF690089FFFFFFFFFFFFFFFFDD2300DD4700000000000000FFFFFFFFEC690089FF8900A7FFDD2300D0FFFF890089FFFFFFC30034FFFFA70089FFFFFFFFB52300C3\
+FF340000000011DDFF47000000000047FF98000000000000FFC3000000000047FFFFFFFFFFC30089FFFF470000000011DDFFDD000000000047FFFFEC1111ECFFFFFFEC110000000000C3FF470000000069FF\
+FFEC69000057D0FFFF47000000000047FF89000000000000FFC30000003489ECFFFFFFFFFFC30089FFFF4700001169DDFFFFFFB534001169ECFFFF890089FFFFFFFFFFC334000034B5FFFF4700003498FFFF";
+
 // transform 2D vertex by view, separate uv from vec4
 const char *vertexShader = R"(
 	#version 130
@@ -70,12 +79,13 @@ const char *pixelShader = R"(
 	}
 )";
 
-GLuint shaderProgram = 0, vertexBuffer = 0, textureNameLower = 0, textureNameUpper = 0;
-int textureUnitLower = 3, textureUnitUpper = 4; // this dies if GLUint?!
+GLuint shaderProgram = 0, vBufferId = 0;
+GLuint textureNameLower = 0, textureNameUpper = 0, textureNameNumber = 0;
+int textureUnitLower = 2, textureUnitUpper = 3, textureUnitNumber = 4; // this dies if GLUint?!
 
 } // end namespace
 
-int MakeTexture(unsigned char *image, int textureUnit) {
+int MakeLetterTexture(unsigned char *image, int textureUnit) {
 	// create and load texture raster
 	int nchars = strlen(lowerCaseImage), npixels = nchars/2, height = 13, width = npixels/height;
 	unsigned char *pixels = new unsigned char[3*npixels], *p = pixels, *n = (unsigned char *) image;
@@ -90,46 +100,104 @@ int MakeTexture(unsigned char *image, int textureUnit) {
 	return textureName;
 }
 
+int MakeNumberTexture(unsigned char *image, int textureUnit) {
+	// create and load texture raster
+	int nchars = strlen(numberImage), npixels = nchars/2, height = 10, width = npixels/height;
+	unsigned char *pixels = new unsigned char[3*npixels], *p = pixels, *n = (unsigned char *) image;
+	for (int i = 0; i < npixels; i++) {
+		char c1 = *n++, c2 = *n++;
+		int k1 = c1 < 58? c1-'0' : 10+c1-'A', k2 = c2 < 58? c2-'0' : 10+c2-'A', b = 16*k1+k2;
+		for (int k = 0; k < 3; k++)
+			*p++ = (unsigned char) b;
+	}
+	int textureName = LoadTexture(pixels, width, height, 3, textureUnit);
+	delete [] pixels;
+	return textureName;
+}
+
 void Letter(int x, int y, char c, vec3 color, float ptSize) {
-	bool upper = c >= 65 && c <= 90, lower = c >= 97 && c <= 122;
-	if (!upper && !lower)
+	if (c < 48 || c == 61 || c == 94) { // 32(space), 40((), 41()), 43(+), 45(-), 46(.), 47(/), 61(=), 94(^)
+		UseDrawShader();
+		int size = (int) ptSize, h = (int)(ptSize*.5f), hh = (int)(ptSize*.75f);
+		if (c == 40) {
+			vec2 p1(x+h, y+size+1), p2(x+2, y+(int)(.75f*ptSize)), p3(x+2, y+(int)(.25f*ptSize)), p4(x+h, y-1);
+			Line(p1, p2, 2, color); Line(p2, p3, 2, color); Line(p3, p4, 2, color);
+		}
+		if (c == 41) {
+			vec2 p1(x+h, y+size+1), p2(x+size-2, y+(int)(.75f*ptSize)), p3(x+size-2, y+(int)(.25f*ptSize)), p4(x+h, y-1);
+			Line(p1, p2, 2, color); Line(p2, p3, 2, color); Line(p3, p4, 2, color);
+		}
+		if (c == 61) {
+			Line(x+1, y+h+3, x+h+6, y+h+3, 2, color);
+			Line(x+1, y+h-3, x+h+6, y+h-3, 2, color);
+		}
+		if (c == 43) {
+			Line(x+1, y+h+1, x+h+6, y+h+1, 2, color);
+			Line(x+h, y+2, x+h, y+h+6, 2, color);
+		}
+		if (c == 45) Line(x+1, y+h, x+h+3, y+h, 2, color);
+		if (c == 46) Disk(vec2(x+h, y+3), ptSize/3, color);
+		if (c == 47) Line(x+1, y, x+size-1, y+size, 2, color);
+		if (c == 94) {
+			Line(x+1, y+2, x+h, y+h+4, 2, color);
+			Line(x+h, y+h+4, x+size-2, y+2, 2, color);
+		}
 		return;
-	if (!textureNameUpper)
-		textureNameUpper = MakeTexture((unsigned char *) upperCaseImage, textureUnitUpper);
+	}
+	enum { Upper, Lower, Number, Unknown } type =
+		c >= 65 && c <= 90? Upper :
+		c >= 97 && c <= 122? Lower :
+		c >= 48 && c <= 57? Number : Unknown;
+	if (type == Unknown)
+		return;
 	if (!textureNameLower)
-		textureNameLower = MakeTexture((unsigned char *) lowerCaseImage, textureUnitLower);
-	if (!textureNameLower || !textureNameUpper)
-		printf("can't make letters texture map\n");
+		textureNameLower = MakeLetterTexture((unsigned char *) lowerCaseImage, textureUnitLower);
+	if (!textureNameUpper)
+		textureNameUpper = MakeLetterTexture((unsigned char *) upperCaseImage, textureUnitUpper);
+	if (!textureNameNumber)
+		textureNameNumber = MakeNumberTexture((unsigned char *) numberImage, textureUnitNumber);
+	if (!textureNameLower || !textureNameUpper || !textureNameNumber)
+		printf("can't make texture maps\n");
 	if (!shaderProgram)
 		shaderProgram = LinkProgramViaCode(&vertexShader, &pixelShader);
 	glUseProgram(shaderProgram);
-	if (!vertexBuffer) {
-		glGenBuffers(1, &vertexBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	if (!vBufferId) {
+		glGenBuffers(1, &vBufferId);
+		glBindBuffer(GL_ARRAY_BUFFER, vBufferId);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*4*6, NULL, GL_DYNAMIC_DRAW);
 			// need 4 vertices for quad, but 6 if triangles
 	}
-	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, vBufferId);
 	VertexAttribPointer(shaderProgram, "point", 4, 4*sizeof(float), 0);
 		// each vertex is 4 floats, stride is 4 floats
-	glActiveTexture(GL_TEXTURE0+(upper? textureUnitUpper : textureUnitLower));
-	glBindTexture(GL_TEXTURE_2D, upper? textureNameUpper : textureNameLower);
+	int texUnit = type == Upper? textureUnitUpper : type == Lower? textureUnitLower : textureUnitNumber;
+	GLuint texName = type == Upper? textureNameUpper : type == Lower? textureNameLower : textureNameNumber;
+	glActiveTexture(GL_TEXTURE0+texUnit);
+	glBindTexture(GL_TEXTURE_2D, texName);
 	// set screen-mode
 	SetUniform(shaderProgram, "view", ScreenMode());
 	// set text color and texture map, activate texture
 	SetUniform(shaderProgram, "color", color);
-	SetUniform(shaderProgram, "textureImage", upper? textureUnitUpper : textureUnitLower);
+	SetUniform(shaderProgram, "textureImage", texUnit);
 	// enable blended overwrite of color buffer
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	// display character c, value determines horizontal position along texture
-	int letterID = upper? c-'A' : c-'a';
-	float w = .8f*ptSize, h = ptSize, dt = 1.f/26.f, t = (float)letterID*dt;
-	float xx = (float) x, yy = (float) y;
+	float w = .8f*ptSize, h = ptSize, xx = (float) x, yy = (float) y;
+	if (type == Number) {
+		int value = c-'0';
+		float dt = 1.f/10.f, t = (float) value*dt;
+		float vertices[][4] = { {xx, yy, t, 1}, {xx+w, yy, t+dt, 1}, {xx+w, yy+h, t+dt, 0}, {xx, yy+h, t, 0} };
+		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+	}
+	else {
+		int letterID = type == Upper? c-'A' : type == Lower? c-'a' : c-'0';
+		float dt = 1.f/26.f, t = (float)letterID*dt;
+		float vertices[][4] = { {xx, yy+h, t, 1}, {xx+w, yy+h, t+dt, 1}, {xx+w, yy, t+dt, 0}, {xx, yy, t, 0} };
+		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+	}
 	// display as one quad or two triangles, mapped to 1/26 width of texture map
 #ifdef GL_QUADS
-	float vertices[][4] = {{xx, yy+h, t, 1}, {xx+w, yy+h, t+dt, 1}, {xx+w, yy, t+dt, 0}, {xx, yy, t, 0}};
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
 	glDrawArrays(GL_QUADS, 0, 4);
 #else
 	float vertices[][4] = {{xx, yy, t, 1}, {xx+w, yy, t+dt, 1},   {xx+w, yy+h, t+dt, 0},
@@ -149,7 +217,8 @@ void Letters(int x, int y, const char *letters, vec3 color, float ptSize) {
 void Letters(vec3 p, mat4 m, const char *letters, vec3 color, float ptSize) {
 	vec2 pp = ScreenPoint(p, m);
 	for (int i = 0; i < (int) strlen(letters); i++)
-		Letter((int) (pp.x+i*10.9f), (int) pp.y, letters[i], color, ptSize);
+	//	Letter((int) (pp.x+i*10.9f), (int) pp.y, letters[i], color, ptSize);
+		Letter((int) (pp.x+i*ptSize), (int) pp.y, letters[i], color, ptSize);
 }
 
 /*	// method to convert image to hexadecimal data

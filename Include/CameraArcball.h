@@ -1,4 +1,4 @@
-// CameraArcball.h, Copyright (c) Jules Bloomenthal, 2018, all rights reserved
+// CameraArcball.h (c) 2019-2022 Jules Bloomenthald
 
 #ifndef CAMERA_AB_HDR
 #define CAMERA_AB_HDR
@@ -55,7 +55,7 @@ public:
 	vec3    GetTran();
 	float	TimeSinceArcballEvent();
 	char   *Usage();
-	// next formerly private:
+	// formerly private:
 	void    Set(int *vp);
 	void    Set(int scrnX, int scrnY, int scrnW, int scrnH);
 	void    Set(int *viewport, mat4 rot, vec3 tran,

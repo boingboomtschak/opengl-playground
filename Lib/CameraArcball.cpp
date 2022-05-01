@@ -3,9 +3,9 @@
 #include "CameraArcball.h"
 #include <stdio.h>
 
-// ? Do not pass the window size to glViewport or other pixel-based OpenGL calls.
-// ? The window size is in screen coordinates, not pixels.
-// ? Use the framebuffer size, which is in pixels, for pixel-based calls.
+// Do not pass the window size to glViewport or other pixel-based OpenGL calls.
+// The window size is in screen coordinates, not pixels.
+// Use the framebuffer size, which is in pixels, for pixel-based calls.
 
 void CameraAB::Save(const char *filename) {
 	FILE *out = fopen(filename, "wb");
@@ -44,7 +44,7 @@ void CameraAB::Set(int scrnX, int scrnY, int scrnW, int scrnH) {
 	modelview = Translate(tran)*rot;
 	fullview = persp*modelview;
 	float minS = (float) (scrnW < scrnH? scrnW : scrnH);
-	arcball.Set(&this->rot, vec2((float) (scrnX+scrnW/2), (float) (scrnY+scrnH/2)), minS/2-50);
+	arcball.SetCamera(&this->rot, vec2((float) (scrnX+scrnW/2), (float) (scrnY+scrnH/2)), minS/2-50);
 };
 
 void CameraAB::Set(int scrnX, int scrnY, int scrnW, int scrnH, mat4 rot, vec3 tran, float fov, float nearDist, float farDist, bool invVrt) {
@@ -60,7 +60,7 @@ void CameraAB::Set(int scrnX, int scrnY, int scrnW, int scrnH, mat4 rot, vec3 tr
 	modelview = Translate(tran)*rot;
 	fullview = persp*modelview;
 	float minS = (float) (scrnW < scrnH? scrnW : scrnH);
-	arcball.Set(&this->rot, vec2((float) (scrnX+scrnW/2), (float) (scrnY+scrnH/2)), minS/2-50);
+	arcball.SetCamera(&this->rot, vec2((float) (scrnX+scrnW/2), (float) (scrnY+scrnH/2)), minS/2-50);
 };
 
 void CameraAB::Set(int *vp, mat4 rot, vec3 tran, float fov, float nearDist, float farDist, bool invVrt) {
@@ -106,7 +106,7 @@ void CameraAB::Resize(int width, int height) {
 	aspectRatio = (float) width/height;
 	persp = Perspective(fov, aspectRatio, nearDist, farDist);
 	fullview = persp*modelview;
-	arcball.Set(&rot, vec2((float) width, (float) height)/2, (float) (width < height? width : height)/2-50);
+	arcball.SetCamera(&rot, vec2((float) width, (float) height)/2, (float) (width < height? width : height)/2-50);
 }
 
 void CameraAB::SetSpeed(float tranS) { tranSpeed = tranS; }
@@ -118,6 +118,9 @@ mat4 CameraAB::GetRotate() {
 }
 
 void CameraAB::SetRotateCenter(vec3 r) {
+	// if center of rotation changed, orientation of modelview doesn't change, 
+	// but orientation applied to scene with new center of rotation causes shift
+	// to scene origin - this is fixed with translation offset computed here
 	mat4 m = GetRotate();
 	vec4 rXformedWithOldRotateCenter = m*r;
 	rotateCenter = r;

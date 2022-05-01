@@ -1,16 +1,11 @@
 // Text.h: text support
+// (c) 2019-2022 Jules Bloomenthal
 
 #ifndef TEXT_HDR
 #define TEXT_HDR
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#define GLFW_INCLUDE_NONE
-#include <OpenGL/gl3.h>
-#else
-#include <glad.h>
-#endif
-#include <GLFW/glfw3.h>
+#include "glad.h"
+#include "GLFW/glfw3.h"
 #include "GLXtras.h"
 
 class Character {
@@ -36,7 +31,7 @@ struct CharacterSet {
     }
 };
 
-CharacterSet *SetFont(const char *fontName, int charRes = 15, int pixelRes = 15);
+CharacterSet *SetFont(const char *fontName, int charRes = 15, int pixelRes = 15, bool forceInit = false);
     // sets, returns current font
 
 void Text(int x, int y, vec3 color, float scale, const char *format, ...);

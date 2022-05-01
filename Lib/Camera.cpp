@@ -1,70 +1,73 @@
-// Camera.cpp
+// Camera.cpp (c) 2019-2022 Jules Bloomenthal
 
 #include "Camera.h"
 #include <stdio.h>
 
 Camera::Camera(float aspectRatio, vec3 rot, vec3 tran, float fov, float nearDist, float farDist, bool invVrt) :
-    aspectRatio(aspectRatio), rot(rot), tran(tran), fov(fov),
-    nearDist(nearDist), farDist(farDist), invertVertical(invVrt) {
-        persp = Perspective(fov, aspectRatio, nearDist, farDist);
-        modelview = Translate(tran)*GetRotate();
-        fullview = persp*modelview;
+	aspectRatio(aspectRatio), rot(rot), tran(tran), fov(fov),
+	nearDist(nearDist), farDist(farDist), invertVertical(invVrt) {
+		persp = Perspective(fov, aspectRatio, nearDist, farDist);
+		modelview = Translate(tran)*GetRotate();
+		fullview = persp*modelview;
 };
 
 Camera::Camera(int scrnW, int scrnH, vec3 rot, vec3 tran, float fov, float nearDist, float farDist, bool invVrt) :
-    aspectRatio((float) scrnW/scrnH), rot(rot), tran(tran), fov(fov),
-    nearDist(nearDist), farDist(farDist), invertVertical(invVrt) {
-        persp = Perspective(fov, aspectRatio, nearDist, farDist);
-        modelview = Translate(tran)*GetRotate();
-        fullview = persp*modelview;
+	aspectRatio((float) scrnW/scrnH), rot(rot), tran(tran), fov(fov),
+	nearDist(nearDist), farDist(farDist), invertVertical(invVrt) {
+		persp = Perspective(fov, aspectRatio, nearDist, farDist);
+		modelview = Translate(tran)*GetRotate();
+		fullview = persp*modelview;
 };
 
 void Camera::SetFOV(float newFOV) {
-    fov = newFOV;
-    persp = Perspective(fov, aspectRatio, nearDist, farDist);
-    fullview = persp*modelview;
+	fov = newFOV;
+	persp = Perspective(fov, aspectRatio, nearDist, farDist);
+	fullview = persp*modelview;
 }
 
 void Camera::SetFOV(float newFOV, float newNearDist, float newFarDist) {
-    fov = newFOV;
+	fov = newFOV;
 	nearDist = newNearDist;
 	farDist = newFarDist;
-    persp = Perspective(fov, aspectRatio, nearDist, farDist);
-    fullview = persp*modelview;
+	persp = Perspective(fov, aspectRatio, nearDist, farDist);
+	fullview = persp*modelview;
 }
 
 float Camera::GetFOV() {
-    return fov;
+	return fov;
 }
 
 void Camera::Resize(int screenW, int screenH) {
-    aspectRatio = (float)screenW/screenH;
-    persp = Perspective(fov, aspectRatio, nearDist, farDist);
-    fullview = persp*modelview;
+	aspectRatio = (float)screenW/screenH;
+	persp = Perspective(fov, aspectRatio, nearDist, farDist);
+	fullview = persp*modelview;
 }
 
 void Camera::SetSpeed(float rotS, float tranS) {
-    rotSpeed = rotS;
-    tranSpeed = tranS;
+	rotSpeed = rotS;
+	tranSpeed = tranS;
 }
 
 mat4 Camera::GetRotate() {
-    mat4 moveToCenter = Translate(-rotateCenter);
-    mat4 moveBack = Translate(rotateCenter+rotateOffset);
-    mat4 rx = RotateX(rot[0]);
-    mat4 ry = RotateY(rot[1]);
-    mat4 rz = RotateZ(rot[2]);
-    return moveBack*rx*ry*rz*moveToCenter;
+	mat4 moveToCenter = Translate(-rotateCenter);
+	mat4 moveBack = Translate(rotateCenter+rotateOffset);
+	mat4 rx = RotateX(rot[0]);
+	mat4 ry = RotateY(rot[1]);
+	mat4 rz = RotateZ(rot[2]);
+	return moveBack*rx*ry*rz*moveToCenter;
 }
 
 void Camera::SetRotateCenter(vec3 r) {
-    mat4 m = GetRotate();
-    vec4 rXformedWithOldRotateCenter = m*r;
-    rotateCenter = r;
-    m = GetRotate(); // no, this is not redundant!
-    vec4 rXformedWithNewRotateCenter = m*r;
-    for (int i = 0; i < 3; i++)
-        rotateOffset[i] += rXformedWithOldRotateCenter[i]-rXformedWithNewRotateCenter[i];
+	// if center of rotation changed, orientation of modelview doesn't change, 
+	// but orientation applied to scene with new center of rotation causes shift
+	// to scene origin - this is fixed with translation offset computed here
+	mat4 m = GetRotate();
+	vec4 rXformedWithOldRotateCenter = m*r;
+	rotateCenter = r;
+	m = GetRotate(); // this is not redundant!
+	vec4 rXformedWithNewRotateCenter = m*r;
+	for (int i = 0; i < 3; i++)
+		rotateOffset[i] += rXformedWithOldRotateCenter[i]-rXformedWithNewRotateCenter[i];
 }
 
 void Camera::MouseDrag(int x, int y, bool shift) {
@@ -72,30 +75,30 @@ void Camera::MouseDrag(int x, int y, bool shift) {
 }
 
 void Camera::MouseDrag(double x, double y, bool shift) {
-    vec2 mouse((float) x, (float) y), dif = mouse-mouseDown;
-    if (shift)
-        tran = tranOld+tranSpeed*vec3(dif.x, invertVertical? -dif.y : dif.y, 0);
-            // invert y for upward-increasing screen space
-    else {
-        rot.x = rotOld.x+rotSpeed*dif.y;
-        rot.y = rotOld.y+rotSpeed*dif.x;
-    }
-    modelview = Translate(tran)*GetRotate();
-    fullview = persp*modelview;
+	vec2 mouse((float) x, (float) y), dif = mouse-mouseDown;
+	if (shift)
+		tran = tranOld+tranSpeed*vec3(dif.x, invertVertical? -dif.y : dif.y, 0);
+			// invert y for upward-increasing screen space
+	else {
+		rot.x = rotOld.x+rotSpeed*dif.y;
+		rot.y = rotOld.y+rotSpeed*dif.x;
+	}
+	modelview = Translate(tran)*GetRotate();
+	fullview = persp*modelview;
 }
 
 void Camera::MouseWheel(bool forward, bool shift) {
-    if (shift)
-        tranOld.z = (tran.z += forward? -.1f : .1f);  // dolly in/out
-    else
-        rotOld.z = (rot.z += 5*(forward? rotSpeed : -rotSpeed));
-    modelview = Translate(tran)*GetRotate();
-    fullview = persp*modelview;
+	if (shift)
+		tranOld.z = (tran.z += forward? -.1f : .1f);  // dolly in/out
+	else
+		rotOld.z = (rot.z += 5*(forward? rotSpeed : -rotSpeed));
+	modelview = Translate(tran)*GetRotate();
+	fullview = persp*modelview;
 }
 
 void Camera::MouseUp() {
-    rotOld = rot;
-    tranOld = tran;
+	rotOld = rot;
+	tranOld = tran;
 }
 
 void Camera::MouseDown(int x, int y) {
@@ -103,17 +106,17 @@ void Camera::MouseDown(int x, int y) {
 }
 
 void Camera::MouseDown(double x, double y) {
-    mouseDown = vec2((float) x, (float) y);
-    rotOld = rot;
-    tranOld = tran;
+	mouseDown = vec2((float) x, (float) y);
+	rotOld = rot;
+	tranOld = tran;
 }
 
 vec3 Camera::GetRot() {
-    return rot;
+	return rot;
 }
 
 vec3 Camera::GetTran() {
-    return tran;
+	return tran;
 }
 
 static const char *usage = "\
@@ -123,5 +126,5 @@ static const char *usage = "\
 \twith shift:\ttranslate z";
 
 char *Camera::Usage() {
-    return (char *) usage;
+	return (char *) usage;
 }

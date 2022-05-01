@@ -1,4 +1,4 @@
-// Draw.h
+// Draw.h (c) 2019-2022 Jules Bloomenthal
 
 // note: as of OpenGLv3.1, LINE_STIPPLE and glLineStipple are deprecated
 //       only available in compatibility profile
@@ -20,6 +20,8 @@ bool IsVisible(vec3 p, mat4 fullview, vec2 *screen = NULL, int *w = NULL, int *h
 	// if the depth test is enabled, is point p visible?
 	// if non-null, set screen location (in pixels) of transformed p
 	// **** this is slow when used during rendering!
+float DepthXY(int x, int y);
+	// return z-value at pixel(x,y), normalized for +/-1 space
 vec2 ScreenPoint(vec3 p, mat4 m, float *zscreen = NULL);
 	// transform 3D point to location (xscreen, yscreen), in pixels; if non-null, set zscreen
 	// uses current GL viewport
@@ -40,8 +42,8 @@ int UseDrawShader();
 	// return previous shader ID
 int UseDrawShader(mat4 viewMatrix);
 	// as above, but set view transformation
-void Disk(vec2 p, float diameter, vec3 color, float opacity = 1);
-void Disk(vec3 p, float diameter, vec3 color, float opacity = 1);
+void Disk(vec2 p, float diameter, vec3 color, float opacity = 1, bool ring = false);
+void Disk(vec3 p, float diameter, vec3 color, float opacity = 1, bool ring = false);
 void Line(vec3 p1, vec3 p2, float width, vec3 col, float opacity = 1);
 void Line(vec3 p1, vec3 p2, float width, vec3 col1, vec3 col2, float opacity = 1);
 void Line(vec2 p1, vec2 p2, float width, vec3 col, float opacity = 1);
@@ -50,7 +52,9 @@ void Line(int x1, int y1, int x2, int y2, float width, vec3 col, float opacity =
 void LineDash(vec3 p1, vec3 p2, mat4 view, float width, vec3 col1, vec3 col2, float opacity = 1);
 void LineDot(vec3 p1, vec3 p2, mat4 view, float width, vec3 col, float opacity = 1);
 void LineStrip(int nPoints, vec3 *points, vec3 &color, float opacity, float width);
+void Quad(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, bool solid, vec3 color, float opacity = 1, float lineWidth = 1);
 void Quad(vec3 pnt1, vec3 pnt2, vec3 pnt3, vec3 pnt4, bool solid, vec3 color, float opacity = 1, float lineWidth = 1);
+void Sun(vec3 p, float size, vec3 color, mat4 fullview);
 void Arrow(vec2 base, vec2 head, vec3 color, float lineWidth = 1, double headSize = 4);
 	// display an arrow between base and head
 void ArrowV(vec3 base, vec3 v, mat4 modelview, mat4 persp, vec3 color, float lineWidth = 1, double headSize = 4);

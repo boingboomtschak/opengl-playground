@@ -1,21 +1,52 @@
 // Text.cpp: display text using FreeType
+// (c) 2019-2022 Jules Bloomenthal
 // see tutorial: https://learnopengl.com/In-Practice/Text-Rendering
 
+#include <glad.h>
 #include "Draw.h"
 #include "GLXtras.h"
+#include "Letters.h"
 #include "Text.h"
 #include <map>
 #include <stdio.h>
 
+#define FormatString(buffer, maxBufferSize, format) {  \
+	(buffer)[0] = 0;                                   \
+	if (format) {                                      \
+		va_list ap;                                    \
+		va_start(ap, format);                          \
+		_vsnprintf(buffer, maxBufferSize, format, ap); \
+		va_end(ap);                                    \
+	}                                                  \
+}
+
 // if FreeType not linked, comment next line:
-// #define FREETYPE_OK
+//#define FREETYPE_OK
+
 #ifndef FREETYPE_OK
-CharacterSet *SetFont(const char *fontName, int charRese, int pixelRes) { return NULL; }
-void Text(int x, int y, vec3 color, float scale, const char *format, ...) { }
-void Text(vec3 p, mat4 m, vec3 color, float scale, const char *format, ...) { }
-void Text(float x, float y, vec3 color, float scale, const char *format, ...) { }
-void RenderText(const char *text, float x, float y, vec3 color, float scale, mat4 view) { }
+float scaleAdj = .5f;
+void Text(int x, int y, vec3 color, float scale, const char *format, ...) {
+	char text[500];
+	FormatString(text, 500, format);
+	Letters(x, y, text, color, scaleAdj*scale);
+}
+void Text(vec3 p, mat4 m, vec3 color, float scale, const char *format, ...) {
+	char text[500];
+	FormatString(text, 500, format);
+	vec2 s = ScreenPoint(p, m);
+	Letters((int) s.x, (int) s.y, text, color, scaleAdj*scale);
+}
+void Text(float x, float y, vec3 color, float scale, const char *format, ...) {
+	char text[500];
+	FormatString(text, 500, format);
+	Letters((int) x, (int) y, text, color, scaleAdj*scale);
+}
+void RenderText(const char *text, float x, float y, vec3 color, float scale, mat4 view) {
+	vec2 s = ScreenPoint(vec3(x, y, 0), view);
+	Letters((int) s.x, (int) s.y, text, color, scaleAdj*scale);
+}
 float TextWidth(float scale, const char *format, ...) { return 0; }
+CharacterSet *SetFont(const char *fontName, int charRes, int pixelRes, bool forceInit) { return NULL; };
 #else
 
 #include <ft2build.h>
@@ -69,9 +100,9 @@ void SetCharacterSet(CharacterSet &cs, const char *fontName, int charRes, int pi
 	FT_Done_FreeType(ft);
 }
 
-CharacterSet *SetFont(const char *fontName, int charRes, int pixelRes) {
+CharacterSet *SetFont(const char *fontName, int charRes, int pixelRes, bool forceInit) {
 	CharacterSets::iterator it = fonts.find(fontName);
-	if (it == fonts.end()) {
+	if (it == fonts.end() || forceInit) {
 		CharacterSet cs;
 		SetCharacterSet(cs, fontName, charRes, pixelRes);
 		fonts[string(fontName)] = cs;
@@ -83,7 +114,7 @@ CharacterSet *SetFont(const char *fontName, int charRes, int pixelRes) {
 
 static const char *textVertexShader = "\
 	#version 130                                    \n\
-	in vec4 point;                                  \n\
+	in vec4 point;  // why isn't this vec2?         \n\
 	out vec2 vUv;                                   \n\
 	uniform mat4 view;                              \n\
 	void main() {                                   \n\
@@ -107,7 +138,7 @@ void RenderText(const char *text, float x, float y, vec3 color, float scale, mat
 		textShaderProgram = LinkProgramViaCode(&textVertexShader, &textPixelShader);
 	glUseProgram(textShaderProgram);
 	if (!currentFont) {
-		SetFont("C:/Fonts/OpenSans/OpenSans-Regular.ttf", 15, 30);  // unsure exact effect of charRes, pixelRes
+		SetFont("C:/Fonts/OpenSans/OpenSans-Regular.ttf", 64, 100);  // unsure exact effect of charRes, pixelRes
 		return;
 	}
 	scale /= (float) currentFont->charRes;
@@ -149,22 +180,13 @@ void RenderText(const char *text, float x, float y, vec3 color, float scale, mat
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-#define FormatString(buffer, maxBufferSize, format) {  \
-	(buffer)[0] = 0;                                   \
-	if (format) {                                      \
-		va_list ap;                                    \
-		va_start(ap, format);                          \
-		_vsnprintf(buffer, maxBufferSize, format, ap); \
-		va_end(ap);                                    \
-	}                                                  \
-}
-
 float TextWidth(float scale, const char *format, ...) {
 	float w = 0;
 	char text[500];
 	FormatString(text, 500, format);
 	if (!currentFont)
 		SetFont("C:/Fonts/OpenSans/OpenSans-Regular.ttf", 15, 30);  // unsure exact affect of charRes, pixelRes
+			// name, charRes, pixelRes
 	if (currentFont != NULL) {
 		scale /= (float) currentFont->charRes;
 		for (const char* c = text; *c; c++) {

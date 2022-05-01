@@ -1,27 +1,23 @@
-// Widgets.cpp
+// Widgets.cpp (c) 2019-2022 Jules Bloomenthal
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#define GLFW_INCLUDE_NONE
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
 #include <GLFW/glfw3.h>
+#include <gl/glu.h>
 #include "Draw.h"
 #include "GLXtras.h"
 #include "Letters.h"
 #include "Misc.h"
+#include "Text.h"
 #include "Widgets.h"
 #include <float.h>
 #include <stdio.h>
 #include <string.h>
 
-// #define USE_TEXT
+//#define USE_TEXT
 
-#ifdef USE_TEXT
-#include "Text.h"
-#endif
+//#ifdef USE_TEXT
+//#include "Text.h"
+//#endif
 
 // Support
 
@@ -40,11 +36,7 @@ bool MouseOver(double x, double y, vec3 p, mat4 &view, int proximity, int xCurso
 
 bool Nil(float f) { return f > -FLT_EPSILON && f < FLT_EPSILON; }
 
-float DotProduct(float a[], float b[]) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
-
-// double ScreenZ(vec3 p, mat4 m) { return (m*vec4(p, 1)).z; }
-
-// bool FrontFacing(vec3 base, vec3 vec, mat4 view) { return ScreenZ(base, view) >= ScreenZ(base+vec, view); }
+// float DotProduct(float a[], float b[]) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
 
 vec3 ProjectToLine(vec3 &p, vec3 &p1, vec3 &p2) {
 	// project p to line p1p2
@@ -56,11 +48,11 @@ vec3 ProjectToLine(vec3 &p, vec3 &p1, vec3 &p2) {
 	return p1+alpha*delta;
 }
 
-vec3 FrameBase(mat4 &f) { return vec3(f[0][3], f[1][3], f[2][3]); }
+vec3 MatrixOrigin(mat4 f) { return vec3(f[0][3], f[1][3], f[2][3]); }
 
-float FrameScale(mat4 &f) { return length(vec3(f[0][0], f[1][0], f[2][0])); }
+float MatrixScale(mat4 f) { return length(vec3(f[0][0], f[1][0], f[2][0])); }
 
-void SetBase(mat4 &f, vec3 &base) {
+void SetMatrixOrigin(mat4 &f, vec3 base) {
 	for (int i = 0; i < 3; i++)
 		f[i][3] = base[i];
 }
@@ -85,6 +77,7 @@ void Mover::Down(vec3 *p, int x, int y, mat4 modelview, mat4 persp) {
 	vec2 s = ScreenPoint(*p, persp*modelview);
 	mouseOffset = vec2(s.x-x, s.y-y);
 	point = p;
+	pMousedown = *p;
 	transform = NULL;
 	SetPlane(*p, modelview, persp, plane);
 }
@@ -97,10 +90,12 @@ void Mover::Down(mat4 *t, int x, int y, mat4 modelview, mat4 persp) {
 	mouseOffset = vec2(s.x-x, s.y-y);
 	transform = t;
 	point = NULL;
+	pMousedown = MatrixOrigin(*t);
 	SetPlane(p, modelview, persp, plane);
 }
 
-void Mover::Drag(int xMouse, int yMouse, mat4 modelview, mat4 persp) {
+vec3 Mover::Drag(int xMouse, int yMouse, mat4 modelview, mat4 persp) {
+	vec3 dPoint;
 	if (point || transform) {
 		vec3 p1, p2, axis;
 		float x = xMouse+mouseOffset.x, y = yMouse+mouseOffset.y;
@@ -115,7 +110,9 @@ void Mover::Drag(int xMouse, int yMouse, mat4 modelview, mat4 persp) {
 		vec3 p = p1+a*axis;
 		if (point) *point = p;
 		if (transform) { (*transform)[0][3] = p.x; (*transform)[1][3] = p.y; (*transform)[2][3] = p.z; }
+		dPoint = p-pMousedown;
 	}
+	return dPoint;
 }
 
 void  Mover::Wheel(double spin) {
@@ -147,10 +144,11 @@ Framer::Framer(mat4 *m, float radius, mat4 fullview) { Set(m, radius, fullview);
 void Framer::Set(mat4 *m, float radius, mat4 fullview) {
 	vec2 s(0, 0);
 	if (m) {
-		base = FrameBase(*m);
+		base = MatrixOrigin(*m);
 		s = ScreenPoint(base, fullview);
 	}
-	arcball.Set(m, s, radius, Arcball::Body);
+	arcball.SetBody(m, radius);
+	arcball.SetCenter(s);
 	moverPicked = false;
 }
 
@@ -167,7 +165,7 @@ void Framer::Down(int x, int y, mat4 modelview, mat4 persp, bool control) {
 void Framer::Drag(int x, int y, mat4 modelview, mat4 persp) {
 	if (moverPicked) {
 		mover.Drag(x, y, modelview, persp);
-		SetBase(*arcball.m, base);
+		SetMatrixOrigin(*arcball.m, base);
 		arcball.SetCenter(ScreenPoint(base, persp*modelview));
 	}
 	else
@@ -192,22 +190,43 @@ mat4 *Framer::GetMatrix() { return arcball.m; }
 
 // Arcball
 
-Arcball::Arcball() { Set(NULL, vec2(), 0); }
-
-Arcball::Arcball(mat4 *m, vec2 center, float radius, Use use) { Set(m, center, radius, use); }
-
-void Arcball::Set(mat4 *mat, vec2 c, float r, Use u) {
-	use = u;
+void Arcball::SetBody(mat4 *mat, float r) {
+	// set Body arcball, set scale from *mat, on Drag: update *m
+	use = Use::Body;
 	m = mat;
-	center = c;
-	radius = r;
-	scale = 1;
 	if (m)
-		scale = FrameScale(*m);
+		scale = MatrixScale(*m);
+	radius = r;
 }
 
-void Arcball::SetCenter(vec2 c) { center = c; }
-void Arcball::SetCenter(vec2 c, float r) { center = c; radius = r; }
+void Arcball::SetBody(mat4 mat, float r) {
+	// set Body arcball, set scale from mat, Drag does not update m
+	use = Use::Body;
+	radius = r;
+	scale = MatrixScale(mat);
+}
+
+void Arcball::SetCamera(mat4 *mat, vec2 c, float r) {
+	// set Camera arcball with given center, radius
+	use = Use::Camera;
+	m = mat;
+	scale = MatrixScale(*m);
+	radius = r;
+	center = c;
+}
+
+void Arcball::SetCenter(vec2 c) {
+	center = c;
+}
+
+void Arcball::SetCenter(vec2 c, float r) {
+	center = c;
+	radius = r;
+}
+
+bool Arcball::MouseOver(int x, int y) {
+	return ::MouseOver(x, y, center);
+}
 
 bool Arcball::Hit(int x, int y) {
 	vec2 dif(x-center.x, y-center.y);
@@ -233,43 +252,43 @@ bool Normalize(vec3 &v) {
 	return true;
 }
 
-// see Arcball.html by Ken Shoemake
-
 vec3 Arcball::ConstrainToAxis(vec3 loose, vec3 axis) {
+	// see Arcball.html by Ken Shoemake
 	// force sphere point to be perpendicular to axis, on unit sphere
 	float d = dot(axis, loose);
-	vec3 p = loose-d*axis; // on plane defined by axis
-	if (Normalize(p)) return p.z > 0? p : -p; // on unit sphere
+	vec3 p = loose-d*axis;						// on plane defined by axis
+	if (Normalize(p)) return p.z > 0? p : -p;	// on unit sphere
 	vec3 pp(-axis.y, axis.x, 0);
 	if (Normalize(pp)) return pp;
 	return vec3(1, 0, 0);
 };
 
-void Arcball::SetNearestAxis(int mousex, int mousey, bool control) {
+void Arcball::SetNearestAxis(int mousex, int mousey, mat4 *downMat) {
 	constrainIndex = -1;
-	if (control) {
-		mat4 identity(1), *v = use == Camera? &identity : m;
-		vec3 p = BallV(vec2((float) mousex, (float) mousey));
-		float dotMax = -1;
-		for (int i = 0; i < 3; i++) {
-			vec3 axis = normalize(vec3((*v)[i][0], (*v)[i][1], (*v)[i][2]));
-			vec3 onPlane = ConstrainToAxis(p, axis);
-			float d = abs(dot(onPlane, p));
-			if (d > dotMax) {
-				dotMax = d;
-				constrainIndex = i;
-				constrainAxis = axis;
-			}
+	mat4 identity(1), *v = use == Use::Camera? &identity : downMat;
+	vec3 p = BallV(vec2((float) mousex, (float) mousey));
+	float dotMax = -1;
+	for (int i = 0; i < 3; i++) {
+		vec3 axis = normalize(vec3((*v)[0][i], (*v)[1][i], (*v)[2][i]));
+		vec3 onPlane = ConstrainToAxis(p, axis);
+		float d = abs(dot(onPlane, p));
+		if (d > dotMax) {
+			dotMax = d;
+			constrainIndex = i;
+			constrainAxis = axis;
 		}
 	}
 };
 
-void Arcball::Down(int x, int y, bool c) {
+void Arcball::Down(int x, int y, bool constrain, mat4 *mOverride) {
 	constrainIndex = -1;
 	mouseDown = mouseMove = vec2((float) x, (float) y);
-	if (m) {
-		qstart = Quaternion(*m);
-		SetNearestAxis(x, y, c);
+	mat4 *mat = mOverride? mOverride : m;
+	if (mat) {
+		qstart = Quaternion(*mat);
+		scale = MatrixScale(*mat);
+		if (constrain)
+			SetNearestAxis(x, y, mat);
 	}
 }
 
@@ -279,39 +298,43 @@ void Arcball::Up() {
 	dragging = false;
 }
 
-void Arcball::Drag(int x, int y) {
+Quaternion Arcball::Drag(int x, int y) {
 	dragging = true;
 	mouseMove = vec2((float) x, (float) y);
-	vec3 v1 = BallV(mouseDown), v2= BallV(mouseMove);
+	vec3 v1 = BallV(mouseDown), v2 = BallV(mouseMove);
 	if (constrainIndex >= 0) { 
 		v1 = ConstrainToAxis(v1, constrainAxis);
 		v2 = ConstrainToAxis(v2, constrainAxis);
 	}
+	Quaternion qrot;
 	vec3 axis = cross(v2, v1);
 	if (dot(axis, axis) > .000001f) {
-		Quaternion qrot(axis, (float) acos((double) dot(v1, v2)));
-		qq = use == Camera? qstart*qrot : qrot*qstart;
-		mat3 m3 = qq.Get3x3();
-		for (int i = 0; i < 3; i++)
-			for (int j = 0; j < 3; j++)
-				(*m)[i][j] = scale*m3[i][j];
+		qrot = Quaternion(axis, (float) acos((double) dot(v1, v2)));
+		qq = use == Use::Camera? qstart*qrot : qrot*qstart;
+		mat3 m3 = scale*qq.Get3x3();
+		if (m != NULL)
+			for (int i = 0; i < 3; i++)
+				for (int j = 0; j < 3; j++)
+					(*m)[i][j] = m3[i][j];
 	}
+	return qrot;
 }
 
 void Arcball::Wheel(double spin, bool shift) {
 	scale *= (spin > 0? 1.01f : .99f);
-	Scale3x3(*m, scale/FrameScale(*m));
+	Scale3x3(*m, scale/MatrixScale(*m));
 }
 
 mat4 *Arcball::GetMatrix() { return m; }
 
 Quaternion Arcball::GetQ() { return qq; }
 
-void Arcball::Draw(bool showConstrainAxes) {
-	if (m) {
+void Arcball::Draw(bool showConstrainAxes, mat4 *matOverride) {
+	mat4 *mm = matOverride? matOverride : m;
+	if (mm) {
 		UseDrawShader(ScreenMode());
 		vec3 v1 = BallV(mouseDown), v2 = BallV(mouseMove);
-		vec3 s1, p1, mauve(1, .2f, .8f), yellow(1, 1, 0);
+		vec3 s1, p1, mauve(1, .2f, .8f), yellow(1, 1, 0), red(1, 0, 0), blue(0, 0, 1);
 		bool showConstrain = showConstrainAxes || constrainIndex >= 0;
 		if (!showConstrain && length(mouseDown-mouseMove) > 2)
 			for (int i = 0; i < 24; i++) {
@@ -323,16 +346,16 @@ void Arcball::Draw(bool showConstrainAxes) {
 				s1 = s2;
 			}
 		else if (showConstrain) {
-			if (use == Camera) {
+			if (use == Use::Camera) {
 				if (constrainIndex == 0 || !dragging)
-					Line(vec2(center.x, center.y-radius), vec2(center.x, center.y+radius), 2, constrainIndex == 0? yellow : mauve);
+					Line(vec2(center.x, center.y-radius), vec2(center.x, center.y+radius), 2, yellow);
 				if (constrainIndex == 1 || !dragging)
-					Line(vec2(center.x-radius, center.y), vec2(center.x+radius, center.y), 2, constrainIndex == 1? yellow : mauve);
+					Line(vec2(center.x-radius, center.y), vec2(center.x+radius, center.y), 2, yellow);
 			}
-			else // use == Body
+			if (use == Use::Body)
 				for (int i = 0; i < 3; i++)
 					if (!dragging || constrainIndex == i) {
-						vec3 axis = normalize(vec3((*m)[i][0], (*m)[i][1], (*m)[i][2]));
+						vec3 axis = normalize(vec3((*mm)[0][i], (*mm)[1][i], (*mm)[2][i]));
 						vec3 v1(axis.y, -axis.x, 0);
 						if (!Normalize(v1)) v1 = vec3(0, 1, 0);
 						vec3 v2 = cross(v1, axis);
@@ -350,7 +373,7 @@ void Arcball::Draw(bool showConstrainAxes) {
 		for (int i = 0; i < 36; i++) {
 			float ang = 2*3.141592f*((float)i/35);
 			vec3 p2(center.x+radius*cos(ang), center.y+radius*sin(ang), 0);
-			if (i > 0) Line(p1, p2, 2, use == Camera && showConstrain && constrainIndex == 2? yellow : mauve);
+			if (i > 0) Line(p1, p2, 2, use == Use::Camera && showConstrain && constrainIndex == 2? yellow : mauve);
 			p1 = p2;
 		}
 	}
@@ -362,6 +385,11 @@ Joystick::Joystick(vec3 *b, vec3 *v, float arrowScale, vec3 color) :
 	base(b), vec(v), arrowScale(arrowScale), color(color) {
 		for (int i = 0; i < 4; i++)
 			plane[i] = 0;
+}
+
+bool Joystick::Hit(int x, int y, vec3 b,  vec3 v, mat4 fullview) {
+	return ScreenDistSq(x, y, b, fullview) < 100 ||
+		   ScreenDistSq(x, y, b+v, fullview) < 100;
 }
 
 bool Joystick::Hit(int x, int y, mat4 fullview) {
@@ -392,23 +420,23 @@ void Joystick::Drag(int x, int y, mat4 modelview, mat4 persp) {
 	}
 	if (mode == JoyType::A_Tip) {
 		float len = length(*vec);
-		vec3 hit1, hit2;
+		vec3 hit1, hit2, v;
 		int nhits = LineSphere(p1, p2, *base, len, hit1, hit2);
 		if (nhits == 0) {
 			vec3 n = ProjectToLine(*base, p1, p2);
-			vec3 v = normalize(n-*base);
-			*vec = len*v;
+			v = normalize(n-*base);
 		}
 		else {
-			*vec = hit2-*base;
-			if (FrontFacing(*base, *vec, modelview) != fwdFace)
-				*vec = hit1-*base;
+			v = hit2-*base;
+			if (FrontFacing(*base, v, modelview) != fwdFace)
+				v = hit1-*base;
 		}
+		*vec = len*normalize(v);
 	}
 }
 
 void Joystick::Draw(vec3 color, mat4 modelview, mat4 persp) {
-    bool frontFacing = FrontFacing(*base, *vec, modelview);
+//  bool frontFacing = FrontFacing(*base, *vec, modelview);
 	UseDrawShader(persp*modelview);
 #ifdef GL_LINE_STIPPLE
 	if (!frontFacing) {
@@ -429,38 +457,95 @@ void Joystick::SetVector(vec3 v) { *vec = v; }
 
 void Joystick::SetBase(vec3 b) { *base = b; }
 
+// Rectangular Push-Button
+
+Button::Button(const char *cname, int x, int y, int w, int h, vec3 col)
+	: x(x), y(y), w(w), h(h), color(col)
+{
+		if (cname) name = std::string(cname);
+};
+
+void Button::Draw(const char *nameOverride, float textSize, vec3 *colorOverride, vec3 textColor) {
+	// assume ScreenMode and no depth-test
+	const char *s = nameOverride? nameOverride : name.c_str();
+	int nchars = strlen(s), npixels = int(textSize*(float)nchars);
+	Quad(x, y, x, y+h, x+w, y+h, x+w, y, true, colorOverride? *colorOverride : color, 1, 2);
+	int midX = x+w/2, midY = y-h/2;
+	Text((int) (midX-npixels/2), (int) (midY+(int)(1.5f*textSize)), textColor, textSize, nameOverride? nameOverride : name.c_str());
+}
+
+bool Button::Hit(int xMouse, int yMouse) {
+	return xMouse > x && xMouse < x+w && yMouse > y && yMouse < y+h;
+}
+
+bool Button::Hit(double xMouse, double yMouse) {
+	return xMouse > x && xMouse < x+w && yMouse > y && yMouse < y+h;
+}
+
 // Toggler
 
-Toggler::Toggler(bool *on, const char *name, int x, int y, float dia, vec3 onCol, vec3 offCol, vec3 ringCol)
-	: on(on), name(name), x(x), y(y), dia(dia), onCol(onCol), offCol(offCol), ringCol(ringCol) { };
+Toggler::Toggler(const char *cname, int x, int y, float dia, vec3 col, vec3 ringCol)
+	: ptr(NULL), x(x), y(y), dia(dia), onCol(col), offCol(col), ringCol(ringCol) {
+	if (cname) name = std::string(cname);
+};
+
+Toggler::Toggler(bool on, const char *cname, int x, int y, float dia, vec3 onCol, vec3 offCol, vec3 ringCol)
+	: x(x), y(y), dia(dia), onCol(onCol), offCol(offCol), ringCol(ringCol) {
+	ptr = &this->state;
+	*ptr = on;
+	if (cname) name = std::string(cname);
+};
+
+Toggler::Toggler(bool *on, const char *cname, int x, int y, float dia, vec3 onCol, vec3 offCol, vec3 ringCol)
+	: ptr(on), x(x), y(y), dia(dia), onCol(onCol), offCol(offCol), ringCol(ringCol) {
+	if (cname) name = std::string(cname);
+};
 
 void Toggler::Draw(const char *nameOverride, float textSize, vec3 *color) {
 	// assume ScreenMode and no depth-test
 	vec3 p((float)x, (float)y, 0);
+	const char *s = nameOverride? nameOverride : name.c_str();
 	Disk(p, dia, ringCol);
 	Disk(p, dia-6, color? *color : On()? onCol : offCol);
-#ifdef USE_TEXT
-	Text(x+10, y-6, vec3(0, 0, 0), textSize, nameOverride? nameOverride : name.c_str());
-#else
-	Letters(x+10, y-6, nameOverride? nameOverride : name.c_str(), vec3(0, 0, 0), textSize);
-#endif
+//#ifdef USE_TEXT
+	Text(x+10, y-6, vec3(0, 0, 0), textSize, s);
+//#else
+//	Letters(x+10, y-6, nameOverride? nameOverride : name.c_str(), vec3(0, 0, 0), textSize);
+//#endif
 }
 
 bool Toggler::Hit(int xMouse, int yMouse, int proximity) {
-	vec2 p((float)x, (float)y);
-	return MouseOver(xMouse, yMouse, p, proximity);
+	return Hit((float) xMouse, (float) yMouse);
 }
 
-bool Toggler::DownHit(double xMouse, double yMouse, int state, int proximity) {
-	bool hit = Hit((int) xMouse, (int) yMouse, proximity);
-	if (state == GLFW_PRESS && hit && on)
-		*on = *on? false : true;
+bool Toggler::Hit(double xMouse, double yMouse, int proximity) {
+	return Hit((float) xMouse, (float) yMouse);
+}
+
+bool Toggler::Hit(float xMouse, float yMouse, int proximity) {
+	return MouseOver(xMouse, yMouse, vec2(x, y), proximity);
+}
+
+bool Toggler::DownHit(double xMouse, double yMouse, int proximity) {
+	return DownHit((int) xMouse, (int) yMouse, proximity);
+}
+
+bool Toggler::DownHit(int xMouse, int yMouse, int proximity) {
+	return DownHit((float) xMouse, (float) yMouse, proximity);
+}
+
+bool Toggler::DownHit(float xMouse, float yMouse, int proximity) {
+	bool hit = Hit(xMouse, yMouse, proximity);
+	if (hit) {
+		if (ptr != NULL) *ptr = *ptr? false : true;
+		else state = !state;
+	}
 	return hit;
 }
 
-bool Toggler::On() { return on? *on : false; }
+bool Toggler::On() { return ptr? *ptr : false; }
 
-void Toggler::Set(bool set) { if (on) *on = set; }
+void Toggler::Set(bool set) { if (ptr) *ptr = set; }
 
 const char *Toggler::Name() { return name.c_str(); }
 
@@ -506,32 +591,14 @@ void Magnifier::Display(int2 displayLoc, bool showSrcWindow) {
 	glReadPixels(srcLoc[0], srcLoc[1], nxBlocks, nyBlocks, GL_RGB, GL_FLOAT, pixels);
 	for (int i = 0; i < nxBlocks; i++)
 		for (int j = 0; j < nyBlocks; j++) {
-			float *pixel = pixels+3*(i*nyBlocks+j);
+			float *pixel = pixels+3*(j*nxBlocks+i);
+//			float *pixel = pixels+3*(i*nyBlocks+j);
 			vec3 col(pixel[0], pixel[1], pixel[2]);
 			h.Rect(displayLoc[0]+blockSize*i, displayLoc[1]+blockSize*j+dy, blockSize, blockSize, true, col);
 		}
 	glDisable(GL_BLEND);
 	if (showSrcWindow)
-		h.Rect(srcLoc[0], srcLoc[1], nxBlocks-1, nyBlocks-1, false, vec3(0, 1, 1));
-	h.Rect(displayLoc[0], displayLoc[1]+dy, nxBlocks*blockSize, nyBlocks*blockSize, false, vec3(0, 1, 1));
+		h.Rect(srcLoc[0], srcLoc[1], nxBlocks-1, nyBlocks-1, false, vec3(0, .7f, 0));
+	h.Rect(displayLoc[0], displayLoc[1]+dy, nxBlocks*blockSize, nyBlocks*blockSize, false, vec3(0, .7f, 0));
 	delete [] pixels;
 }
-
-/* float* version
-void Mover::Drag(int xMouse, int yMouse, mat4 modelview, mat4 persp) {
-	if (!point)
-		return;
-	float p1[3], p2[3], axis[3];
-	float x = xMouse+mouseOffset.x, y = yMouse+mouseOffset.y;
-	ScreenLine((float) x, (float) y, modelview, persp, p1, p2);
-	// get two points that transform to pixel x,y
-	for (int i = 0; i < 3; i++)
-		axis[i] = p2[i]-p1[i];
-	// direction of line through p1
-	float pdDot = DotProduct(axis, plane);
-	// project onto plane normal
-	float a = (-plane[3]-DotProduct(p1, plane))/pdDot;
-	// intersection of line with plane
-	for (int j = 0; j < 3; j++)
-		(*point)[j] = p1[j]+a*axis[j];
-} */

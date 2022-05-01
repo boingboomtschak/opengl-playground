@@ -1,12 +1,7 @@
-// Draw.cpp - various draw operations
+// Draw.cpp - various draw operations (c) 2019-2022 Jules Bloomenthal
 
-#ifdef __APPLE__
-#define GL_SILENCE_DEPRECATION
-#include <OpenGL/gl3.h>
-#else
 #include <glad.h>
-#endif
-//#include <GL/glu.h>
+#include <gl/glu.h>
 #include "Draw.h"
 #include "GLXtras.h"
 #include "Misc.h"
@@ -14,7 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
-#include "VecMat.h"
 
 // Screen Mode
 
@@ -78,6 +72,13 @@ bool IsVisible(vec3 p, mat4 fullview, vec2 *screenA, int *w, int *h, float fudge
 	return z < zScreen+fudge;
 }
 
+float DepthXY(int x, int y) {
+	float v, depthRange[2]; // depthRange maps back to window coordinates of +/-1
+	glGetFloatv(GL_DEPTH_RANGE, depthRange);
+	glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &v);
+	return -1+2*(v-depthRange[0])/(depthRange[1]-depthRange[0]);
+}
+
 float ScreenDistSq(int x, int y, vec3 p, mat4 m, float *zscreen) {
 	vec2 screen = ScreenPoint(p, m, zscreen);
 	float dx = x-screen.x, dy = y-screen.y;
@@ -104,10 +105,10 @@ void ScreenRay(float xscreen, float yscreen, mat4 modelview, mat4 persp, vec3 &p
 			tpersp[i][j] = persp[j][i];
 		}
 	// un-project two screen points of differing depth to determine v
-	//if (gluUnProject(xscreen, yscreen, .25, (const double*) tmodelview, (const double*) tpersp, vp, &a[0], &a[1], &a[2]) == GL_FALSE)
-	//	printf("UnProject false\n");
-	//if (gluUnProject(xscreen, yscreen, .50, (const double*) tmodelview, (const double*) tpersp, vp, &b[0], &b[1], &b[2]) == GL_FALSE)
-	//	printf("UnProject false\n");
+	if (gluUnProject(xscreen, yscreen, .25, (const double*) tmodelview, (const double*) tpersp, vp, &a[0], &a[1], &a[2]) == GL_FALSE)
+		printf("UnProject false\n");
+	if (gluUnProject(xscreen, yscreen, .50, (const double*) tmodelview, (const double*) tpersp, vp, &b[0], &b[1], &b[2]) == GL_FALSE)
+		printf("UnProject false\n");
 	v = normalize(vec3((float) (b[0]-a[0]), (float) (b[1]-a[1]), (float) (b[2]-a[2])));
 }
 
@@ -124,10 +125,10 @@ void ScreenLine(float xscreen, float yscreen, mat4 modelview, mat4 persp, vec3 &
 			tmodelview[i][j] = modelview[j][i];
 			tpersp[i][j] = persp[j][i];
 		}
-	//if (gluUnProject(xscreen, yscreen, .25, (const double*) tmodelview, (const double*) tpersp, vp, &a[0], &a[1], &a[2]) == GL_FALSE)
-	//	printf("UnProject false\n");
-	//if (gluUnProject(xscreen, yscreen, .50, (const double*) tmodelview, (const double*) tpersp, vp, &b[0], &b[1], &b[2]) == GL_FALSE)
-	//	printf("UnProject false\n");
+	if (gluUnProject(xscreen, yscreen, .25, (const double*) tmodelview, (const double*) tpersp, vp, &a[0], &a[1], &a[2]) == GL_FALSE)
+		printf("UnProject false\n");
+	if (gluUnProject(xscreen, yscreen, .50, (const double*) tmodelview, (const double*) tpersp, vp, &b[0], &b[1], &b[2]) == GL_FALSE)
+		printf("UnProject false\n");
 		// alternatively, a seond point can be determined by transforming the origin by the inverse of modelview
 		// this would yield in world space the camera location, through which all view lines pass
 	p1 = vec3(static_cast<float>(a[0]), static_cast<float>(a[1]), static_cast<float>(a[2]));
@@ -169,7 +170,8 @@ const char *drawPShader = R"(
 	in vec3 vColor;
 	out vec4 pColor;
 	uniform float opacity = 1;
-	uniform int fadeToCenter = 0;
+	uniform bool fadeToCenter = false;
+	uniform bool ring = false;
 	float Fade(float t) {
 		if (t < .95) return 1;
 		if (t > 1.05) return 0;
@@ -177,7 +179,14 @@ const char *drawPShader = R"(
 		return 1-smoothstep(0, 1, a);
 			// does smoothstep help?
 	}
+	float Ring(float t) {
+		if (t < .7) return 0;
+		if (t > .9) return 1;
+		float a = (t-.7)/(.9-.7);
+		return smoothstep(0, 1, a);
+	}
 	float DistanceToCenter() {
+		// gl_PointCoord wrt point primitive size
 		float dx = 1-2*gl_PointCoord.x;
 		float dy = 1-2*gl_PointCoord.y;
 		return sqrt(dx*dx+dy*dy);
@@ -186,8 +195,10 @@ const char *drawPShader = R"(
 		// GL_POINT_SMOOTH deprecated, so calc here
 		// needs GL_POINT_SPRITE or 0x8861 enabled
 		float o = opacity;
-		if (fadeToCenter == 1)
+		if (fadeToCenter)
 			o *= Fade(DistanceToCenter());
+		if (ring)
+			o *= Ring(DistanceToCenter());
 		pColor = vec4(vColor, o);
 	}
 )";
@@ -214,11 +225,11 @@ int UseDrawShader(mat4 viewMatrix) {
 
 GLuint diskBuffer = -1;
 
-void Disk(vec2 p, float diameter, vec3 color, float opacity) {
-	Disk(vec3(p), diameter, color, opacity);
+void Disk(vec2 p, float diameter, vec3 color, float opacity, bool ring) {
+	Disk(vec3(p), diameter, color, opacity, ring);
 }
 
-void Disk(vec3 p, float diameter, vec3 color, float opacity) {
+void Disk(vec3 p, float diameter, vec3 color, float opacity, bool ring) {
 	// diameter should be >= 0, <= 20
 	UseDrawShader();
 	// create buffer for single vertex (x,y,z,r,g,b)
@@ -238,6 +249,7 @@ void Disk(vec3 p, float diameter, vec3 color, float opacity) {
 	VertexAttribPointer(drawShader, "color", 3, 0, (void *) sizeof(vec3));
 	// draw
 	SetUniform(drawShader, "opacity", opacity);
+	SetUniform(drawShader, "ring", ring);
 	glPointSize(diameter);
 #ifdef GL_POINT_SMOOTH
 	glEnable(GL_POINT_SMOOTH);
@@ -334,7 +346,7 @@ void LineStrip(int nPoints, vec3 *points, vec3 &color, float opacity, float widt
 	glBufferSubData(GL_ARRAY_BUFFER, 0, pSize, points);
 	glBufferSubData(GL_ARRAY_BUFFER, pSize, pSize, &colors[0]);
 	VertexAttribPointer(drawShader, "position", 3, 0, (void *) 0);
-	VertexAttribPointer(drawShader, "color", 3, 0, (void *)(size_t)pSize);
+	VertexAttribPointer(drawShader, "color", 3, 0, (void *) pSize);
 	SetUniform(drawShader, "fadeToCenter", 0);
 	SetUniform(drawShader, "opacity", opacity);
 	glLineWidth(width);
@@ -366,6 +378,22 @@ void Quad(vec3 p1, vec3 p2, vec3 p3, vec3 p4, bool solid, vec3 col, float opacit
 	glLineWidth(lineWidth);
 	glDrawArrays(solid? GL_QUADS : GL_LINE_LOOP, 0, 4);
 #endif
+}
+
+void Quad(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4, bool solid, vec3 color, float opacity, float lineWidth) {
+	Quad(vec3((float)x1,(float)y1,0), vec3((float)x2,(float)y2,0), vec3((float)x3,(float)y3,0), vec3((float)x4,(float)y4,0), solid, color, opacity, lineWidth);
+}
+
+// Sun
+
+void Sun(vec3 p, float size, vec3 color, mat4 fullview) {
+	vec2 s = ScreenPoint(p, fullview);
+	Disk(s, size, color);
+	for (int r = 0, nRays = 16; r < nRays; r++) {
+		float a = 2*3.1415f*(float)r/(nRays-1), len = .7f*(r%2? .18f : .25f);
+		vec2 d(cos(a), sin(a)), s1 = s+.07f*d, s2 = s+len*d;
+		Line(s1, s2, 1.f, color);
+	}
 }
 
 // Arrows
