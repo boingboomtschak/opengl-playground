@@ -64,7 +64,6 @@ void dCube::display(Camera camera, mat4 *m) {
 	SetUniform(shader, "modelview", modelview);
 	for (size_t i = 0; i < 6; i++) 
 		glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, (GLvoid*)(i * sizeof(int4)));
-	//glDrawElements(GL_LINE_LOOP, 25, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
 }
 

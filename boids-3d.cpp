@@ -38,8 +38,8 @@ Camera camera((float) win_width / win_height, vec3(0, 0, 0), vec3(0, 0, -5));
 
 vector<dMesh> boid_meshes;
 vector<dMesh> rock_meshes;
-GLfloat cube_points[][3] = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} }; GLuint cube_faces[] = { 0, 1, 2, 3, 2, 3, 4, 5, 4, 5, 6, 7, 6, 7, 0, 1, 0, 3, 4, 7, 1, 2, 5, 6 };
-GLfloat plane_points[][3] = { {-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1} }; GLfloat plane_uvs[][2] = { {0, 0}, {1, 0}, {1, 1}, {0, 1} }; GLuint plane_tris[][3] = { {0, 1, 2}, {2, 3, 0} };
+vector<vec3> cube_points = { {-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1} }; vector<int4> cube_faces = { {0, 1, 2, 3}, {2, 3, 4, 5}, {4, 5, 6, 7}, {6, 7, 0, 1}, {0, 3, 4, 7}, {1, 2, 5, 6} };
+vector<vec3> plane_points = { {-1, -1, -1}, {1, -1, -1}, {1, -1, 1}, {-1, -1, 1} }; vector<vec2> plane_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} }; vector<int3> plane_tris = { {0, 1, 2}, {2, 3, 0} };
 
 vec3 lightSource = vec3(1, 1, 0);
 
@@ -284,20 +284,16 @@ void MouseWheel(GLFWwindow* w, double ignore, double spin) {
 }
 
 void InitBuffers() {
-	// Get attribute locations
-	GLint point_id = glGetAttribLocation(program, "point");
-	GLint uv_id = glGetAttribLocation(program, "uv");
 	// Set up cube VAO/buffer
 	glGenVertexArrays(1, &cubeVAO);
 	glBindVertexArray(cubeVAO);
 	glGenBuffers(1, &cubeBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, cubeBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_points), cube_points, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, cube_points.size() * sizeof(vec3), cube_points.data(), GL_STATIC_DRAW);
 	glGenBuffers(1, &cubeIBuffer);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeIBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_faces), cube_faces, GL_STATIC_DRAW);
-	glVertexAttribPointer(point_id, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)sizeof(cube_points));
-	glEnableVertexAttribArray(point_id);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, cube_faces.size() * sizeof(int4), cube_faces.data(), GL_STATIC_DRAW);
+	VertexAttribPointer(program, "point", 3, 0, 0);
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -307,18 +303,16 @@ void InitBuffers() {
 	glGenBuffers(1, &planeBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, planeBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(plane_points)+sizeof(plane_uvs), NULL, GL_STATIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(plane_points), plane_points);
-	glBufferSubData(GL_ARRAY_BUFFER, sizeof(plane_points), sizeof(plane_uvs), plane_uvs);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, plane_points.size()*sizeof(vec3), plane_points.data());
+	glBufferSubData(GL_ARRAY_BUFFER, plane_points.size()*sizeof(vec3), plane_uvs.size()*sizeof(vec2), plane_uvs.data());
 	glGenBuffers(1, &planeIBuffer);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeIBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(plane_tris), plane_tris, GL_STATIC_DRAW);	
-	glVertexAttribPointer(point_id, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)sizeof(cube_points));
-	glEnableVertexAttribArray(point_id);
-	glVertexAttribPointer(uv_id, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(sizeof(cube_points) + sizeof(plane_points)));
-	glEnableVertexAttribArray(uv_id);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, plane_tris.size()*sizeof(int3), plane_tris.data(), GL_STATIC_DRAW);	
 	glActiveTexture(GL_TEXTURE0 + planeTexUnit);
 	glBindTexture(GL_TEXTURE_2D, planeTexName);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	VertexAttribPointer(program, "point", 3, 0, 0);
+	VertexAttribPointer(program, "uv", 2, 0, (GLvoid*)(plane_points.size()*sizeof(vec3)));
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -364,9 +358,8 @@ void Display() {
 	SetUniform(program, "useTexture", 0);
 	SetUniform(program, "persp", camera.persp);
 	SetUniform(program, "modelview", camera.modelview);
-	//for (int i = 0; i < 6; i++) 
-		//glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, (GLvoid*)(size_t)(i * 4));
-	glDrawElements(GL_LINE_LOOP, sizeof(cube_faces)/sizeof(GLuint), GL_UNSIGNED_INT, 0);
+	for (int i = 0; i < 6; i++) 
+		glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_INT, (GLvoid*)(i * sizeof(int4)));
 	glBindVertexArray(0);
 	PrintGLErrors("Cube");
 	// Draw floor

@@ -92,9 +92,6 @@ void dMesh::Buffer() {
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizePts, points.data());
     glBufferSubData(GL_ARRAY_BUFFER, sizePts, sizeNorms, normals.data());
     glBufferSubData(GL_ARRAY_BUFFER, sizePts + sizeNorms, sizeUvs, uvs.data());
-    VertexAttribPointer(shader, "point", 3, 0, (void*)0);
-    VertexAttribPointer(shader, "normal", 3, 0, (void*)sizePts);
-    VertexAttribPointer(shader, "uv", 2, 0, (void*)(sizePts + sizeNorms));
     glGenBuffers(1, &iBuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(int3), triangles.data(), GL_STATIC_DRAW);
@@ -104,9 +101,13 @@ void dMesh::Buffer() {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
+    VertexAttribPointer(shader, "point", 3, 0, (void*)0);
+    VertexAttribPointer(shader, "normal", 3, 0, (void*)sizePts);
+    VertexAttribPointer(shader, "uv", 2, 0, (void*)(sizePts + sizeNorms));
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    if (texUnit && texName) glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void dMesh::PreDisplay() {
