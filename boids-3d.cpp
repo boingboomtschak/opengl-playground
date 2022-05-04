@@ -302,7 +302,8 @@ void InitBuffers() {
 	glBindVertexArray(planeVAO);
 	glGenBuffers(1, &planeBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, planeBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(plane_points)+sizeof(plane_uvs), NULL, GL_STATIC_DRAW);
+	size_t vBufSize = (plane_points.size() * sizeof(vec3)) + (plane_uvs.size() * sizeof(vec2));
+	glBufferData(GL_ARRAY_BUFFER, vBufSize, NULL, GL_STATIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, plane_points.size()*sizeof(vec3), plane_points.data());
 	glBufferSubData(GL_ARRAY_BUFFER, plane_points.size()*sizeof(vec3), plane_uvs.size()*sizeof(vec2), plane_uvs.data());
 	glGenBuffers(1, &planeIBuffer);
@@ -369,11 +370,11 @@ void Display() {
 	SetUniform(program, "persp", camera.persp);
 	SetUniform(program, "modelview", camera.modelview);
 	SetUniform(program, "textureUnit", (int)planeTexUnit);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+	glDrawElements(GL_TRIANGLES, plane_points.size() * sizeof(vec3), GL_UNSIGNED_INT, 0);
 	// Draw other side of floor
 	mat4 modelview = camera.modelview * Translate(0, -1, 0) * RotateZ(180.0f) * Translate(0, 1, 0);
 	SetUniform(program, "modelview", modelview);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+	glDrawElements(GL_TRIANGLES, plane_points.size() * sizeof(vec3), GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
 	PrintGLErrors("Floor");
 	// Draw boids

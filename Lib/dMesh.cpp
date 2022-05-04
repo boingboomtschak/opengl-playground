@@ -95,12 +95,6 @@ void dMesh::Buffer() {
     glGenBuffers(1, &iBuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size() * sizeof(int3), triangles.data(), GL_STATIC_DRAW);
-    if (texUnit && texName) {
-        glActiveTexture(GL_TEXTURE0 + texUnit);
-        glBindTexture(GL_TEXTURE_2D, texName);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
     VertexAttribPointer(shader, "point", 3, 0, (void*)0);
     VertexAttribPointer(shader, "normal", 3, 0, (void*)sizePts);
     VertexAttribPointer(shader, "uv", 2, 0, (void*)(sizePts + sizeNorms));
@@ -133,18 +127,23 @@ void dMesh::Display(Camera camera, mat4* m) {
         shader = GetMeshShader();
         preDisp = false;
     }
+    if (texUnit && texName) {
+        glActiveTexture(GL_TEXTURE0 + texUnit);
+        glBindTexture(GL_TEXTURE_2D, texName);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
     SetUniform(shader, "useTexture", texUnit ? 1 : 0);
-    //SetUniform(shader, "useTexture", 0);
     if (texUnit) 
         SetUniform(shader, "textureName", (int)texName);
     SetUniform(shader, "persp", camera.persp);
     SetUniform(shader, "modelview", camera.modelview * *m * transform);
-    glDrawElements(GL_TRIANGLES, 3 * numTris, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, triangles.size() * sizeof(int3), GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 }
 
 bool dMesh::Read(char* objFilename, mat4* m) {
-    if (!ReadAsciiObj(objFilename, points, triangles, &normals, &uvs)) {
+    if (!ReadAsciiObj(objFilename, points, triangles, &normals, &uvs, nullptr, nullptr, nullptr, nullptr)) {
         fprintf(stderr, "dMesh : Can't read obj '%s'\n", objFilename);
         return false;
     }
