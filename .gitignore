@@ -4,6 +4,8 @@ Debug/
 Release/
 x64/
 macos/
+*.xcodeproj/
+*.xcodeproj
 *.sln
 *.vcxproj
 *.filters
@@ -12,3 +14,4 @@ macos/
 *.un~
 *.DS_Store
 *.o
+*.entitlements
