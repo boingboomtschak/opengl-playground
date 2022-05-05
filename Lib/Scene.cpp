@@ -103,7 +103,7 @@ void Scene::DeleteMesh() {
 	char buf[501];
 	int n = -1;
 	printf("delete mesh number: ");
-	gets_s(buf, 501);
+    std::fgets(buf, 501, stdin);
 	if (sscanf(buf, "%i", &n) == 1 && n >= 0 && n < (int) meshes.size()) {
 		printf("deleted mesh[%i]\n", n);
 		meshes.erase(meshes.begin()+n);
