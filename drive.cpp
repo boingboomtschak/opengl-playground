@@ -70,7 +70,8 @@ struct Camera {
 	float zNear = 0.1f;
 	float zFar = 1000.0f;
 	int width, height;
-	vec3 loc, look;
+    vec3 loc, look;
+    vec3 up = vec3(0, 1, 0);
 	mat4 view;
 	mat4 persp;
 	Camera() {
@@ -78,16 +79,16 @@ struct Camera {
 		height = win_height;
 		loc = vec3(-1.5, 2, 0);
 		look = vec3(0, 0, 0);
-		view = LookAt(loc, look, vec3(0, 1, 0));
+		view = LookAt(loc, look, up);
 		persp = Perspective(fov, width / height, zNear, zFar);
 	}
 	void moveTo(vec3 _loc) {
 		loc = _loc;
-		view = LookAt(_loc, look, vec3(0, 1, 0));
+		view = LookAt(_loc, look, up);
 	}
 	void lookAt(vec3 _look) {
 		look = _look;
-		view = LookAt(loc, _look, vec3(0, 1, 0));
+		view = LookAt(loc, _look, up);
 	}
 	void adjustFov(float _fov) {
 		fov = _fov;
@@ -99,6 +100,12 @@ struct Camera {
 		persp = Perspective(fov, width / height, zNear, zFar);
 	}
 } camera;
+
+int camera_loc = 1;
+// 1 - Third person chase camera
+// 2 - Top-down camera of arena
+// 3 - Hood camera
+// 4 - Frozen free camera, moved right behind car
 
 // Simple mesh wrapper struct
 struct MeshContainer {
@@ -234,11 +241,11 @@ struct Car {
 	void update() {
 		// Check for car turning with A/D
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			vec4 dirw = RotateY(-1) * dir;
+			vec4 dirw = RotateY(-1.5) * dir;
 			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			vec4 dirw = RotateY(1) * dir;
+			vec4 dirw = RotateY(1.5) * dir;
 			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		vec3 force = vec3(0.0);
@@ -276,6 +283,18 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	}
 	if (key == GLFW_KEY_P && action == GLFW_PRESS)
 		printf("Pos: %.2f %.2f %.2f\n", car.pos.x, car.pos.y, car.pos.z);
+    if (key == GLFW_KEY_1 && action == GLFW_PRESS)
+        camera_loc = 1;
+    if (key == GLFW_KEY_2 && action == GLFW_PRESS)
+        camera_loc = 2;
+    if (key == GLFW_KEY_3 && action == GLFW_PRESS)
+        camera_loc = 3;
+    if (key == GLFW_KEY_4 && action == GLFW_PRESS) {
+        camera_loc = 4;
+        camera.moveTo(car.pos + vec3(0, 1.5, 0) + -3 * car.dir);
+        camera.lookAt(car.pos + 2.5 * car.dir);
+        camera.up = vec3(0, 1, 0);
+    }
 }
 
 void setup() {
@@ -299,7 +318,7 @@ void setup() {
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_CULL_FACE);
+	//glEnable(GL_CULL_FACE);
 }
 
 void cleanup() {
@@ -312,16 +331,24 @@ void cleanup() {
 void draw() {
 	glClearColor(0.651f, 0.961f, 0.941f, 1.0f);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-	// Average car direction and velocity vectors for camera direction
-	vec3 cameraDir = (car.dir + 3 * car.vel) / 2;
-	// Move camera above and just behind car
-	camera.moveTo(car.pos + vec3(0, 1.5, 0) + -3 * cameraDir);
-	// Point camera a bit ahead of the car
-	camera.lookAt(car.pos + 2.5 * cameraDir);
-	// Widen FOV by car velocity to give impression of speed
-	camera.adjustFov(60 + length(car.vel) * 50);
+    if (camera_loc == 1) { // Third person chase camera
+        vec3 cameraDir = (car.dir + 3 * car.vel) / 2;
+        camera.moveTo(car.pos + vec3(0, 1.5, 0) + -3 * cameraDir);
+        camera.lookAt(car.pos + 2.5 * cameraDir);
+        camera.up = vec3(0, 1, 0);
+        camera.adjustFov(60 + length(car.vel) * 50);
+    } else if (camera_loc == 2) { // Top-down camera
+        camera.moveTo(car.pos + vec3(0, 30, 0));
+        camera.lookAt(car.pos);
+        camera.up = car.dir;
+        camera.adjustFov(60);
+    } else if (camera_loc == 3) {
+        camera.moveTo(car.pos + vec3(0, 0.5, 0) + car.dir * 0.5);
+        camera.lookAt(car.pos + car.dir * 3 + vec3(0, 0.5, 0));
+        camera.up = vec3(0, 1, 0);
+        camera.adjustFov(60);
+    }
 	grass_mesh.draw(Scale(60));
-	grass_mesh.draw(Scale(60) * RotateX(180));
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.draw(Translate(pos));
 	car.draw();

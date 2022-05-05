@@ -194,7 +194,6 @@ struct Boid {
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_DEPTH_TEST);
-		//glEnable(GL_CULL_FACE);
 		mat4 trans = Translate(p);
 		mat4 scale = Scale(size);
 		mat4 orient = Orientation(v, vec3(0.0f, 1.0f, 0.0f));
@@ -208,7 +207,10 @@ struct Rock {
 	int mesh;
 	float size;
 	Rock(vec3 pos) {
-		p = pos, mesh = rand() % rockObjFilenames.size(), size = ROCK_SIZE + (rand_float(-1, 1) * ROCK_SIZE_VARIANCE), r = rand_vec3(0, 360);
+        p = pos;
+        mesh = rand() % rockObjFilenames.size();
+        size = ROCK_SIZE + (rand_float(-1, 1) * ROCK_SIZE_VARIANCE);
+        r = rand_vec3(0, 360);
 	}
 	void Draw() {
 		rock_meshes[mesh].PreDisplay();
@@ -349,8 +351,6 @@ void Display() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_DEPTH_TEST);
-	//glEnable(GL_CULL_FACE);
-	//glCullFace(GL_BACK);
 	glClearColor(0.3f, 0.3f, 0.4f, 1.0f);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	// Draw cube

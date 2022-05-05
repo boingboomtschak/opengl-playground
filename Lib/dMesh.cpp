@@ -74,7 +74,7 @@ GLuint dMesh::UseMeshShader() {
 }
 
 void dMesh::Buffer() {
-    int numPts = points.size(), numNorms = normals.size(), numUvs = uvs.size();
+    int numPts = (int)points.size(), numNorms = (int)normals.size(), numUvs = (int)uvs.size();
     if (!numPts || numPts != numNorms || numPts != numUvs) {
         fprintf(stderr, "dMesh : Mesh missing points, normals, or uvs\n");
         return;
@@ -105,17 +105,17 @@ void dMesh::Buffer() {
 }
 
 void dMesh::PreDisplay() {
-    int numPts = points.size(), numNorms = normals.size(), numUvs = uvs.size(), numTris = triangles.size();
+    int numPts = (int)points.size(), numNorms = (int)normals.size(), numUvs = (int)uvs.size(), numTris = (int)triangles.size();
     if (!numPts || !numNorms || !numUvs || !numTris) {
         fprintf(stderr, "dMesh : Mesh not initialized before display call\n");
     }
     glBindVertexArray(vArray);
-    int shader = UseMeshShader();
+    UseMeshShader();
     preDisp = true;
 }
 
 void dMesh::Display(Camera camera, mat4* m) {
-    int numPts = points.size(), numNorms = normals.size(), numUvs = uvs.size(), numTris = triangles.size();
+    int numPts = (int)points.size(), numNorms = (int)normals.size(), numUvs = (int)uvs.size(), numTris = (int)triangles.size();
     if (!numPts || !numNorms || !numUvs || !numTris) {
         fprintf(stderr, "dMesh : Mesh not initialized before display call\n");
     }
@@ -138,7 +138,7 @@ void dMesh::Display(Camera camera, mat4* m) {
         SetUniform(shader, "textureName", (int)texName);
     SetUniform(shader, "persp", camera.persp);
     SetUniform(shader, "modelview", camera.modelview * *m * transform);
-    glDrawElements(GL_TRIANGLES, triangles.size() * sizeof(int3), GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 }
 

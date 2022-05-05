@@ -164,7 +164,7 @@ public:
 	vec4 &operator += (const vec4 &v) { x += v.x;  y += v.y;  z += v.z;  w += v.w; return *this; }
 	vec4 &operator -= (const vec4 &v) { x -= v.x;  y -= v.y;  z -= v.z;  w -= v.w; return *this; }
 	vec4 &operator *= (float s) { x *= s;  y *= s;  z *= s;  w *= s; return *this; }
-	vec4 &operator *= (const vec4 &v) { x *= v.x, y *= v.y, z *= v.z, w *= v.w; return *this; }
+    vec4 &operator *= (const vec4 &v) { x *= v.x; y *= v.y; z *= v.z; w *= v.w; return *this; }
 	vec4 &operator /= (float s) { float r = 1.f/s; *this *= r; return *this; }
 };
 

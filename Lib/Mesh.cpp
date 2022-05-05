@@ -664,7 +664,7 @@ bool ReadAsciiObj(const char    *filename,
 				char name[100];
 				const char *p = strrchr(filename, '/'); //-filename, count = 0;
 				if (p) {
-					int nchars = p-filename;
+					int nchars = (int)(p-filename);
 					strncpy(name, filename, nchars+1);
 					name[nchars+1] = 0;
 					strcat(name, word);
