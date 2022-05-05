@@ -172,37 +172,36 @@ struct MeshContainer {
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	}
 	void draw(mat4 transform, bool depth = false) {
-        if (!depth) {
-            glUseProgram(program);
-            glBindVertexArray(vArray);
-            glActiveTexture(GL_TEXTURE0 + texUnit);
-            glBindTexture(GL_TEXTURE_2D, texture);
-            glActiveTexture(GL_TEXTURE0 + shadowMapTextureUnit);
-            glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
-            mat4 m = transform * model;
-            mat4 depth_view = LookAt(light_loc, vec3(0, 0, 0), vec3(0, 1, 0));
-            mat4 depth_proj = Orthographic(-10, 10, -10, 10);
-            mat4 depth_bias = mat4(vec4(0.5, 0.0, 0.0, 0.0), vec4(0.0, 0.5, 0.0, 0.0), vec4(0.0, 0.0, 0.5, 0.0), vec4(0.5, 0.5, 0.5, 1.0));
-            mat4 depth_mvp = depth_bias * depth_proj * depth_view * m;
-            SetUniform(program, "model", m);
-            SetUniform(program, "view", camera.view);
-            SetUniform(program, "persp", camera.persp);
-            SetUniform(program, "depth_mvp", depth_mvp);
-            SetUniform(program, "uvTexture", (int)texUnit);
-            SetUniform(program, "shadowMap", (int)shadowMapTextureUnit);
-            glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-            glBindTexture(GL_TEXTURE_2D, 0);
-        } else {
-            glBindVertexArray(vArray);
-            mat4 depth_view = LookAt(light_loc, vec3(0, 0, 0), vec3(0, 1, 0));
-            mat4 depth_proj = Orthographic(-10, 10, -10, 10);
-            mat4 depth_mvp = depth_proj * depth_view * transform * model;
-            SetUniform(shadowProgram, "depth_mvp", depth_mvp);
-            glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-        }
+        glUseProgram(program);
+        glBindVertexArray(vArray);
+        glActiveTexture(GL_TEXTURE0 + texUnit);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glActiveTexture(GL_TEXTURE0 + shadowMapTextureUnit);
+        glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
+        mat4 m = transform * model;
+        mat4 depth_view = LookAt(light_loc, vec3(0, 0, 0), vec3(0, 1, 0));
+        mat4 depth_proj = Orthographic(-10, 10, -10, 10, camera.zNear, camera.zFar);
+        mat4 depth_bias = mat4(vec4(0.5, 0.0, 0.0, 0.0), vec4(0.0, 0.5, 0.0, 0.0), vec4(0.0, 0.0, 0.5, 0.0), vec4(0.5, 0.5, 0.5, 1.0));
+        mat4 depth_mvp = depth_bias * depth_proj * depth_view * mat4();
+        SetUniform(program, "model", m);
+        SetUniform(program, "view", camera.view);
+        SetUniform(program, "persp", camera.persp);
+        SetUniform(program, "depth_mvp", depth_mvp);
+        SetUniform(program, "uvTexture", (int)texUnit);
+        SetUniform(program, "shadowMap", (int)shadowMapTextureUnit);
+        glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+        glBindTexture(GL_TEXTURE_2D, 0);
 	}
+    void drawDepth(mat4 transform) {
+        glBindVertexArray(vArray);
+        mat4 depth_view = LookAt(light_loc, vec3(0, 0, 0), vec3(0, 1, 0));
+        mat4 depth_proj = Orthographic(-10, 10, -10, 10, camera.zNear, camera.zFar);
+        mat4 depth_mvp = depth_proj * depth_view * transform * model;
+        SetUniform(shadowProgram, "depth_mvp", depth_mvp);
+        glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+    }
 	void deallocate() {
 		glDeleteVertexArrays(1, &vArray);
 		glDeleteBuffers(1, &vBuffer);
@@ -246,8 +245,12 @@ struct Car {
 	}
     void draw(bool depth = false) {
 		mat4 transform = Translate(pos) * Orientation(dir, vec3(0, 1, 0));
-		mesh.draw(transform, depth);
+		mesh.draw(transform);
 	}
+    void drawDepth() {
+        mat4 transform = Translate(pos) * Orientation(dir, vec3(0, 1, 0));
+        mesh.drawDepth(transform);
+    }
 	void collide() {
 		if (pos.x > 59.5) { pos.x = 59.5; }
 		else if (pos.x < -59.5) { pos.x = -59.5; }
@@ -289,8 +292,7 @@ struct Car {
 } car;
 
 void WindowResized(GLFWwindow* window, int width, int height) {
-	win_width = width;
-	win_height = height;
+    win_width = width; win_height = height;
 	camera.resize(width, height);
 	glViewport(0, 0, win_width, win_height);
 }
@@ -316,7 +318,7 @@ void setup() {
 	MeshContainer car_mesh = MeshContainer("./objects/car.obj", "./textures/car.tga", car_transform);
 	car_mesh.allocate();
 	// Mesh, mass, engine force, rolling resistance, air drag
-	car = Car(car_mesh, 500.0, 1.5, 10.0, 10);
+	car = Car(car_mesh, 500.0, 1.5, 10.0, 10.0);
 	car.pos = vec3(2, 0, 0);
 	grass_mesh = MeshContainer(grass_points, grass_normals, grass_uvs, grass_triangles, "./textures/racetrack.jpg", false);
 	grass_mesh.allocate();
@@ -338,10 +340,10 @@ void setup() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowMapTexture, 0);
     glDrawBuffer(GL_NONE);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         throw runtime_error("Failed to set up shadow framebuffer!");
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
     PrintGLErrors("Post shadow map resources");
 	// Set some GL drawing context settings
 	glEnable(GL_DEPTH_TEST);
@@ -356,6 +358,7 @@ void cleanup() {
 	grass_mesh.deallocate();
 	large_tree_mesh.deallocate();
     glDeleteFramebuffers(1, &shadowFramebuffer);
+    glDeleteTextures(1, &shadowMapTexture);
     
 }
 
@@ -367,13 +370,15 @@ void draw() {
     glViewport(0, 0, 1024, 1024);
     glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowMapTexture, 0);
-    grass_mesh.draw(Scale(60), true);
-    grass_mesh.draw(Scale(60) * RotateX(180), true);
+    grass_mesh.drawDepth(Scale(60));
+    grass_mesh.drawDepth(Scale(60) * RotateX(180));
     for (vec3 pos : large_tree_positions)
-        large_tree_mesh.draw(Translate(pos), true);
-    car.draw(true);
+        large_tree_mesh.drawDepth(Translate(pos));
+    car.drawDepth();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, win_width, win_height);
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    glViewport(0, 0, width, height);
     glClearColor(0.651f, 0.961f, 0.941f, 1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	// Average car direction and velocity vectors for camera direction
