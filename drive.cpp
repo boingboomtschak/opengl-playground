@@ -171,7 +171,7 @@ struct MeshContainer {
 		SetUniform(program, "view", camera.view);
 		SetUniform(program, "persp", camera.persp);
 		SetUniform(program, "txtr", (int)texture);
-		glDrawElements(GL_TRIANGLES, triangles.size() * sizeof(int3), GL_UNSIGNED_INT, 0);
+		glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
@@ -235,11 +235,11 @@ struct Car {
 		// Check for car turning with A/D
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
 			vec4 dirw = RotateY(-1) * dir;
-			car.dir = vec3(dirw.x, dirw.y, dirw.z);
+			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
 			vec4 dirw = RotateY(1) * dir;
-			car.dir = vec3(dirw.x, dirw.y, dirw.z);
+			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		vec3 force = vec3(0.0);
 		// Apply engine force if pressed (F = u{vel} * engine)
@@ -288,7 +288,7 @@ void setup() {
 	MeshContainer car_mesh = MeshContainer("./objects/car.obj", "./textures/car.tga", car_transform);
 	car_mesh.allocate();
 	// Mesh, mass, engine force, rolling resistance, air drag
-	car = Car(car_mesh, 500.0, 1.5, 15.0, 10);
+	car = Car(car_mesh, 500.0, 1.5, 10.0, 10.0);
 	car.pos = vec3(2, 0, 0);
 	grass_mesh = MeshContainer(grass_points, grass_normals, grass_uvs, grass_triangles, "./textures/racetrack.jpg", false);
 	grass_mesh.allocate();
