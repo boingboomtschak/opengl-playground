@@ -46,10 +46,10 @@ const char* meshCtrFrag = R"(
 	in vec3 vNormal;
 	in vec2 vUv;
 	out vec4 pColor;
-	uniform vec3 light = vec3(0, 1, 0);
+	uniform vec3 light = vec3(0, 10, 0);
 	uniform vec4 color = vec4(1, 1, 1, 1);
-	uniform float amb = 0.4;
-	uniform float dif = 0.4;
+	uniform float amb = 0.6;
+	uniform float dif = 0.6;
 	uniform float spc = 0.7;
 	uniform sampler2D txtr;
 	void main() {
@@ -67,6 +67,8 @@ const char* meshCtrFrag = R"(
 
 struct Camera {
 	float fov = 60;
+	float zNear = 0.1f;
+	float zFar = 1000.0f;
 	int width, height;
 	vec3 loc, look;
 	mat4 view;
@@ -74,10 +76,10 @@ struct Camera {
 	Camera() {
 		width = win_width;
 		height = win_height;
-		loc = vec3(-1.5, 1, 0);
-		look = vec3(1, 0, 0);
+		loc = vec3(-1.5, 2, 0);
+		look = vec3(0, 0, 0);
 		view = LookAt(loc, look, vec3(0, 1, 0));
-		persp = Perspective(fov, width / height, 0.1f, 10.0f);
+		persp = Perspective(fov, width / height, zNear, zFar);
 	}
 	void moveTo(vec3 _loc) {
 		loc = _loc;
@@ -89,12 +91,12 @@ struct Camera {
 	}
 	void adjustFov(float _fov) {
 		fov = _fov;
-		persp = Perspective(fov, win_width / win_height, 0.1f, 10.0f);
+		persp = Perspective(fov, win_width / win_height, zNear, zFar);
 	}
 	void resize(int _width, int _height) {
 		width = _width;
 		height = _height;
-		persp = Perspective(fov, width / height, 0.1f, 10.0f);
+		persp = Perspective(fov, width / height, zNear, zFar);
 	}
 } camera;
 
@@ -108,13 +110,13 @@ struct MeshContainer {
 	vector<vec2> uvs;
 	vector<int3> triangles;
 	MeshContainer() { }
-	MeshContainer(vector<vec3> _points, vector<vec3> _normals, vector<vec2> _uvs, vector<int3> _triangles, string texFilename) {
+	MeshContainer(vector<vec3> _points, vector<vec3> _normals, vector<vec2> _uvs, vector<int3> _triangles, string texFilename, bool texMipmap = true) {
 		points = _points;
 		normals = _normals;
 		uvs = _uvs;
 		triangles = _triangles;
 		texUnit = textureUnits++;
-		texture = LoadTexture(texFilename.c_str(), texUnit);
+		texture = LoadTexture(texFilename.c_str(), texUnit, texMipmap);
 		if (texture < 0)
 			throw runtime_error("Failed to read texture '" + texFilename + "'!");
 		compile();
@@ -164,13 +166,14 @@ struct MeshContainer {
 		glBindVertexArray(vArray);
 		glActiveTexture(GL_TEXTURE0 + texUnit);
 		glBindTexture(GL_TEXTURE_2D, texture);
-		mat4 m = model * transform;
+		mat4 m = transform * model;
 		SetUniform(program, "model", m);
 		SetUniform(program, "view", camera.view);
 		SetUniform(program, "persp", camera.persp);
 		SetUniform(program, "txtr", (int)texture);
 		glDrawElements(GL_TRIANGLES, triangles.size() * sizeof(int3), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
+		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 	void deallocate() {
 		glDeleteVertexArrays(1, &vArray);
@@ -180,46 +183,99 @@ struct MeshContainer {
 	}
 };
 
+MeshContainer grass_mesh;
+vector<vec3> grass_points = { {-1, 0, -1}, {1, 0, -1}, {1, 0, 1}, {-1, 0, 1} };
+vector<vec3> grass_normals = { {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0} };
+vector<vec2> grass_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
+vector<int3> grass_triangles = { {0, 1, 2}, {2, 3, 0} };
+
+MeshContainer large_tree_mesh;
+vector<vec3> large_tree_positions = {
+	{49, 0, 37}, {50, 0, 32}, {29, 0, 15}, {50, 0, 10},
+	{-10, 0, 32}, {-34, 0, 7}, {15, 0, -13}, {6, 0, -15},
+	{-0.75, 0, -0.5}
+};
+
 struct Car {
 	MeshContainer mesh;
+	float mass; // mass of car
+	float engine; // engine force
+	float roll; // rolling resistance
+	float drag; // aerodynamic drag constant
 	vec3 pos; // position
+	vec3 dir; // direction
 	vec3 vel; // velocity
-	vec3 acc; // acceleration
 	Car() { };
-	Car(MeshContainer _mesh) {
+	Car(MeshContainer _mesh, float _mass, float _engine, float _roll, float _drag) {
 		mesh = _mesh;
+		mass = _mass;
+		engine = _engine;
+		roll = _roll;
+		drag = _drag;
 		pos = vec3(0, 0, 0);
-		vel = vec3(1, 0, 0);
-		acc = vec3(0, 0, 0);
+		dir = vec3(0, 0, 1);
+		vel = vec3(0, 0, 0);
 	}
 	void draw() { 
-		//mesh.draw(Translate(pos) * Orientation(vel, vec3(0, 1, 0))); 
-		mesh.draw(Translate(pos));
+		mat4 transform = Translate(pos) * Orientation(dir, vec3(0, 1, 0));
+		mesh.draw(transform); 
 	}
-	void update() { }
-	void accel() { }
+	void collide() {
+		if (pos.x > 59.5) { pos.x = 59.5; }
+		else if (pos.x < -59.5) { pos.x = -59.5; }
+		else if (pos.z > 59.5) { pos.z = 59.5; }
+		else if (pos.z < -59.5) { pos.z = -59.5; }
+		for (vec3 tree_pos : large_tree_positions) {
+			float d = dist(pos, tree_pos);
+			if (d < 1.5) vel *= 0.5;
+			//if (d < 1.0) vel = (pos - tree_pos); hard collision with tree
+		}
+	}
+	void update() {
+		// Check for car turning with A/D
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			vec4 dirw = RotateY(-1) * dir;
+			car.dir = vec3(dirw.x, dirw.y, dirw.z);
+		}
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+			vec4 dirw = RotateY(1) * dir;
+			car.dir = vec3(dirw.x, dirw.y, dirw.z);
+		}
+		vec3 force = vec3(0.0);
+		// Apply engine force if pressed (F = u{vel} * engine)
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+			force += dir * engine;
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+			force -= dir * engine;
+		// Apply aerodynamic drag (F = - C{drag} * vel * |vel|)
+		force -= drag * vel * length(vel);
+		// Apply rolling resistance (F = - C{roll} * vel)
+		force -= roll * vel;
+		vec3 acc = force / mass;
+		// Move velocity according to acceleration
+		vel += acc;
+		// Move position according to velocity
+		pos += vel;
+		
+	}
 } car;
 
 void WindowResized(GLFWwindow* window, int width, int height) {
+	win_width = width;
+	win_height = height;
 	camera.resize(width, height);
 	glViewport(0, 0, win_width, win_height);
 }
 
 void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	if (key == GLFW_KEY_ESCAPE)
+	if (key == GLFW_KEY_ESCAPE || key == GLFW_KEY_Q)
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
-	else if (key == GLFW_KEY_W && action == GLFW_PRESS)
-		car.pos += vec3(1, 0, 0);
-	else if (key == GLFW_KEY_S && action == GLFW_PRESS)
-		car.pos -= vec3(1, 0, 0);
-	else if (key == GLFW_KEY_A && action == GLFW_PRESS)
-		car.pos -= vec3(0, 0, 1);
-	else if (key == GLFW_KEY_D && action == GLFW_PRESS)
-		car.pos += vec3(0, 0, 1);
-	else if (key == GLFW_KEY_Q && action == GLFW_PRESS)
-		car.pos -= vec3(0, 1, 0);
-	else if (key == GLFW_KEY_E && action == GLFW_PRESS)
-		car.pos += vec3(0, 1, 0);
+	if (key == GLFW_KEY_R && action == GLFW_PRESS) {
+		car.pos = vec3(2, 0, 0);
+		car.vel = vec3(0, 0, 0);
+	}
+	if (key == GLFW_KEY_P && action == GLFW_PRESS)
+		printf("Pos: %.2f %.2f %.2f\n", car.pos.x, car.pos.y, car.pos.z);
 }
 
 void setup() {
@@ -228,10 +284,17 @@ void setup() {
 	glfwSetWindowSizeCallback(window, WindowResized);
 	glfwSwapInterval(1);
 	// Setup meshes
-	MeshContainer car_mesh = MeshContainer("./objects/car.obj", "./textures/car.tga", Scale(0.5f));
+	mat4 car_transform = Scale(0.5f) * Translate(0, 0.5, 0) * RotateY(-90);
+	MeshContainer car_mesh = MeshContainer("./objects/car.obj", "./textures/car.tga", car_transform);
 	car_mesh.allocate();
-	car = Car(car_mesh);
-
+	// Mesh, mass, engine force, rolling resistance, air drag
+	car = Car(car_mesh, 500.0, 1.5, 15.0, 10);
+	car.pos = vec3(2, 0, 0);
+	grass_mesh = MeshContainer(grass_points, grass_normals, grass_uvs, grass_triangles, "./textures/racetrack.jpg", false);
+	grass_mesh.allocate();
+	mat4 large_tree_transform = Scale(2.0) * Translate(0, 1, 0);
+	large_tree_mesh = MeshContainer("./objects/largetree.obj", "./textures/largetree.jpg", large_tree_transform);
+	large_tree_mesh.allocate();
 	// Set some GL drawing context settings
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
@@ -242,11 +305,25 @@ void setup() {
 void cleanup() {
 	// Cleanup meshes
 	car.mesh.deallocate();
+	grass_mesh.deallocate();
+	large_tree_mesh.deallocate();
 }
 
 void draw() {
-	glClearColor(0.4f, 0.4f, 0.4f, 1.0f);
+	glClearColor(0.651f, 0.961f, 0.941f, 1.0f);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	// Average car direction and velocity vectors for camera direction
+	vec3 cameraDir = (car.dir + 3 * car.vel) / 2;
+	// Move camera above and just behind car
+	camera.moveTo(car.pos + vec3(0, 1.5, 0) + -3 * cameraDir);
+	// Point camera a bit ahead of the car
+	camera.lookAt(car.pos + 2.5 * cameraDir);
+	// Widen FOV by car velocity to give impression of speed
+	camera.adjustFov(60 + length(car.vel) * 50);
+	grass_mesh.draw(Scale(60));
+	grass_mesh.draw(Scale(60) * RotateX(180));
+	for (vec3 pos : large_tree_positions)
+		large_tree_mesh.draw(Translate(pos));
 	car.draw();
 	glFlush();
 }
@@ -270,6 +347,8 @@ int main() {
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 	setup();
 	while (!glfwWindowShouldClose(window)) {
+		car.update();
+		car.collide();
 		draw();
 		glfwPollEvents();
 		glfwSwapBuffers(window);
