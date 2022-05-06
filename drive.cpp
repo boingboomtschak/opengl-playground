@@ -47,12 +47,13 @@ const char* shadowMapFrag = R"(
 const char* meshCtrVert = R"(
 	#version 410 core
 	in vec3 point;
+    in vec3 normal;
 	in vec2 uv;
 	out vec2 vUv;
     out vec4 shadowPoint;
     uniform mat4 depth_mvp;
 	uniform mat4 model;
-	uniform mat4 view;
+	uniform mat4 view;  
 	uniform mat4 persp;
 	void main() {
 		vUv = uv;
@@ -165,7 +166,7 @@ struct MeshContainer {
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, tSize, triangles.data(), GL_STATIC_DRAW);
 		VertexAttribPointer(program, "point", 3, 0, 0);
-		//VertexAttribPointer(program, "normal", 3, 0, (GLvoid*)(pSize));
+		VertexAttribPointer(program, "normal", 3, 0, (GLvoid*)(pSize));
 		VertexAttribPointer(program, "uv", 2, 0, (GLvoid*)(pSize + nSize));
 		glBindVertexArray(0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -210,11 +211,11 @@ struct MeshContainer {
 	}
 };
 
-MeshContainer grass_mesh;
-vector<vec3> grass_points = { {-1, 0, -1}, {1, 0, -1}, {1, 0, 1}, {-1, 0, 1} };
-vector<vec3> grass_normals = { {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0} };
-vector<vec2> grass_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
-vector<int3> grass_triangles = { {0, 1, 2}, {2, 3, 0} };
+MeshContainer floor_mesh;
+vector<vec3> floor_points = { {-1, 0, -1}, {1, 0, -1}, {1, 0, 1}, {-1, 0, 1} };
+vector<vec3> floor_normals = { {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0} };
+vector<vec2> floor_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
+vector<int3> floor_triangles = { {0, 1, 2}, {2, 3, 0} };
 
 MeshContainer large_tree_mesh;
 vector<vec3> large_tree_positions = {
@@ -320,8 +321,8 @@ void setup() {
 	// Mesh, mass, engine force, rolling resistance, air drag
 	car = Car(car_mesh, 500.0, 1.5, 10.0, 10.0);
 	car.pos = vec3(2, 0, 0);
-	grass_mesh = MeshContainer(grass_points, grass_normals, grass_uvs, grass_triangles, "./textures/racetrack.jpg", false);
-	grass_mesh.allocate();
+	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "./textures/racetrack.jpg", false);
+	floor_mesh.allocate();
 	mat4 large_tree_transform = Scale(2.0) * Translate(0, 1, 0);
 	large_tree_mesh = MeshContainer("./objects/largetree.obj", "./textures/largetree.jpg", large_tree_transform);
 	large_tree_mesh.allocate();
@@ -349,13 +350,13 @@ void setup() {
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_CULL_FACE);
+	//glEnable(GL_CULL_FACE);
 }
 
 void cleanup() {
 	// Cleanup meshes
 	car.mesh.deallocate();
-	grass_mesh.deallocate();
+	floor_mesh.deallocate();
 	large_tree_mesh.deallocate();
     glDeleteFramebuffers(1, &shadowFramebuffer);
     glDeleteTextures(1, &shadowMapTexture);
@@ -370,8 +371,7 @@ void draw() {
     glViewport(0, 0, 1024, 1024);
     glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowMapTexture, 0);
-    grass_mesh.drawDepth(Scale(60));
-    grass_mesh.drawDepth(Scale(60) * RotateX(180));
+    floor_mesh.drawDepth(Scale(60));
     for (vec3 pos : large_tree_positions)
         large_tree_mesh.drawDepth(Translate(pos));
     car.drawDepth();
@@ -389,8 +389,7 @@ void draw() {
 	camera.lookAt(car.pos + 2.5 * cameraDir);
 	// Widen FOV by car velocity to give impression of speed
 	camera.adjustFov(60 + length(car.vel) * 50);
-	grass_mesh.draw(Scale(60));
-	grass_mesh.draw(Scale(60) * RotateX(180));
+	floor_mesh.draw(Scale(60));
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.draw(Translate(pos));
 	car.draw();
