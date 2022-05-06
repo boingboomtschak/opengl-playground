@@ -190,11 +190,11 @@ struct MeshContainer {
 	}
 };
 
-MeshContainer grass_mesh;
-vector<vec3> grass_points = { {-1, 0, -1}, {1, 0, -1}, {1, 0, 1}, {-1, 0, 1} };
-vector<vec3> grass_normals = { {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0} };
-vector<vec2> grass_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
-vector<int3> grass_triangles = { {0, 1, 2}, {2, 3, 0} };
+MeshContainer floor_mesh;
+vector<vec3> floor_points = { {-1, 0, -1}, {1, 0, -1}, {1, 0, 1}, {-1, 0, 1} };
+vector<vec3> floor_normals = { {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0} };
+vector<vec2> floor_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
+vector<int3> floor_triangles = { {2, 1, 0}, {0, 3, 2} };
 
 MeshContainer large_tree_mesh;
 vector<vec3> large_tree_positions = {
@@ -220,7 +220,7 @@ struct Car {
 		roll = _roll;
 		drag = _drag;
 		pos = vec3(0, 0, 0);
-		dir = vec3(0, 0, 1);
+		dir = vec3(1, 0, 0);
 		vel = vec3(0, 0, 0);
 	}
 	void draw() { 
@@ -257,7 +257,12 @@ struct Car {
 		// Apply aerodynamic drag (F = - C{drag} * vel * |vel|)
 		force -= drag * vel * length(vel);
 		// Apply rolling resistance (F = - C{roll} * vel)
-		force -= roll * vel;
+        // Weigh rolling resistance by up to 2x normal based on angle difference between direction and velocity
+        float roll_wt = 1 - (dot(dir, vel) / length(dir) / length(vel));
+        if (roll_wt > 1) roll_wt = 1 - (roll_wt - 1);
+        roll_wt = roll_wt * 2 + 1;
+        if (length(vel) < 0.001) roll_wt = 1.0;
+		force -= roll_wt * roll * vel;
 		vec3 acc = force / mass;
 		// Move velocity according to acceleration
 		vel += acc;
@@ -307,10 +312,10 @@ void setup() {
 	MeshContainer car_mesh = MeshContainer("./objects/car.obj", "./textures/car.tga", car_transform);
 	car_mesh.allocate();
 	// Mesh, mass, engine force, rolling resistance, air drag
-	car = Car(car_mesh, 500.0, 1.5, 10.0, 10.0);
+	car = Car(car_mesh, 500.0, 1.5, 5.0, 10.0);
 	car.pos = vec3(2, 0, 0);
-	grass_mesh = MeshContainer(grass_points, grass_normals, grass_uvs, grass_triangles, "./textures/racetrack.jpg", false);
-	grass_mesh.allocate();
+	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "./textures/racetrack.jpg", false);
+	floor_mesh.allocate();
 	mat4 large_tree_transform = Scale(2.0) * Translate(0, 1, 0);
 	large_tree_mesh = MeshContainer("./objects/largetree.obj", "./textures/largetree.jpg", large_tree_transform);
 	large_tree_mesh.allocate();
@@ -318,13 +323,13 @@ void setup() {
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	//glEnable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
 }
 
 void cleanup() {
 	// Cleanup meshes
 	car.mesh.deallocate();
-	grass_mesh.deallocate();
+	floor_mesh.deallocate();
 	large_tree_mesh.deallocate();
 }
 
@@ -348,7 +353,7 @@ void draw() {
         camera.up = vec3(0, 1, 0);
         camera.adjustFov(60);
     }
-	grass_mesh.draw(Scale(60));
+	floor_mesh.draw(Scale(60));
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.draw(Translate(pos));
 	car.draw();

@@ -141,8 +141,8 @@ vector<vec3> QuickHull(vector<vec3> points) {
 // Creates an orientation matrix 
 mat4 Orientation(vec3 forward, vec3 up) {
 	vec3 z = normalize(forward);
-	vec3 x = normalize(cross(z, up));
-	vec3 y = normalize(cross(x, z));
+	vec3 x = normalize(cross(up, z));
+	vec3 y = normalize(cross(z, x));
 	return mat4(vec4(x.x, y.x, z.x, 0), vec4(x.y, y.y, z.y, 0), vec4(x.z, y.z, z.z, 0), vec4(0, 0, 0, 1));
 }
 

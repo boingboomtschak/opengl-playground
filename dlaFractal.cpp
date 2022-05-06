@@ -60,7 +60,7 @@ struct Particle {
 	vec3 p, v, c; // position, color
 	bool alive = true;
 	Particle(vec3 xyz) {
-		p = xyz, v = vec3(1, 0, 0), c = vec3(1);
+        p = xyz; v = vec3(1, 0, 0); c = vec3(1);
 	}
 	void WrapWalls() {
 		if (p.x < -1.0f) p.x = 1.0f;

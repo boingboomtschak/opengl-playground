@@ -76,7 +76,7 @@ int cube_triangles[][3] = {
 };
 
 const char* vertexShader = R"(
-	#version 130
+	#version 410 core
 	in vec3 point;
 	in vec3 normal;
 	in vec2 uv;
@@ -94,7 +94,7 @@ const char* vertexShader = R"(
 )";
 
 const char* fragmentShader = R"(
-	#version 130
+	#version 410 core
 	in vec3 vPoint;
 	in vec3 vNormal;
 	in vec2 vuv;
@@ -189,6 +189,13 @@ int main() {
 	srand((int)time(NULL));
 	if (!glfwInit())
 		return 1;
+    glfwWindowHint(GLFW_SAMPLES, 4);
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
 	GLFWwindow* window = glfwCreateWindow(win_width, win_height, "textureCube", NULL, NULL);
 	if (!window) {
 		glfwTerminate();
@@ -201,7 +208,6 @@ int main() {
 	if (!(program = LinkProgramViaCode(&vertexShader, &fragmentShader)))
 		return 1;
 	InitVertexBuffer();
-	glfwWindowHint(GLFW_SAMPLES, 4);
 	texName = LoadTexture(texture, texUnit);
 	glfwSetCursorPosCallback(window, MouseMove);
 	glfwSetMouseButtonCallback(window, MouseButton);
