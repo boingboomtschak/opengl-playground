@@ -25,12 +25,12 @@ GLuint cubeIBuffer, planeIBuffer;
 GLuint cubeVAO, planeVAO;
 
 vector<const char*> boidObjFilenames = { "./objects/fish/fish1.obj", "./objects/fish/fish2.obj", "./objects/fish/fish3.obj", "./objects/fish/fish4.obj" };
-vector<const char*> boidTexFilenames = { "./textures/fish/fish1.tga", "./textures/fish/fish2.tga", "./textures/fish/fish3.tga", "./textures/fish/fish4.tga" };
+vector<const char*> boidTexFilenames = { "./textures/fish/fish1.png", "./textures/fish/fish2.png", "./textures/fish/fish3.png", "./textures/fish/fish4.png" };
 vector<mat4> boidObjTransforms = { mat4(), mat4(), mat4(), mat4()};
 vector<const char*> rockObjFilenames = { "./objects/rock/rock1.obj", "./objects/rock/rock2.obj", "./objects/rock/rock3.obj" };
-vector<const char*> rockTexFilenames = { "./textures/rock/rock1.tga", "./textures/rock/rock2.tga", "./textures/rock/rock3.tga" };
-vector<const char*> rockNormFilenames = { "./textures/rock/rock1_normal.tga", "./textures/rock/rock2_normal.tga", "./textures/rock/rock3_normal.tga" };
-const char* sandTexFilename = "./textures/sand.tga";
+vector<const char*> rockTexFilenames = { "./textures/rock/rock1.png", "./textures/rock/rock2.png", "./textures/rock/rock3.png" };
+vector<const char*> rockNormFilenames = { "./textures/rock/rock1_normal.png", "./textures/rock/rock2_normal.png", "./textures/rock/rock3_normal.png" };
+const char* sandTexFilename = "./textures/sand.png";
 
 int win_width = 800, win_height = 800;
 

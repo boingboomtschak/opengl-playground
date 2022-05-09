@@ -15,7 +15,7 @@ GLuint program = 0;
 GLuint texUnit = 0;
 GLuint texName;
 
-const char* texture = "textures/grass.tga";
+const char* texture = "textures/grass.png";
 
 int win_width = 800;
 int win_height = 800;

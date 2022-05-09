@@ -1,4 +1,4 @@
-// dMesh.h - Expanded version of Bloomenthal's 3D mesh class
+// dMesh.h : Expanded version of Bloomenthal's 3D mesh class
 
 #ifndef DMESH_HDR
 #define DMESH_HDR

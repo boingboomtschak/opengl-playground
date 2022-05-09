@@ -4,6 +4,7 @@
 #include <glad.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#include <chrono>
 #include <vector>
 #include <string>
 #include <stdexcept>
@@ -12,6 +13,7 @@
 #include "GeomUtils.h"
 #include "Mesh.h"
 #include "Misc.h"
+#include "dSkybox.h"
 
 using std::vector;
 using std::string;
@@ -20,6 +22,10 @@ using std::runtime_error;
 GLFWwindow* window;
 int win_width = 800, win_height = 800;
 GLuint textureUnits = 1;
+
+typedef std::chrono::system_clock::time_point time_p;
+typedef std::chrono::system_clock sys_clock;
+typedef std::chrono::duration<double, std::milli> double_ms;
 
 const char* meshCtrVert = R"(
 	#version 410 core
@@ -64,6 +70,15 @@ const char* meshCtrFrag = R"(
 		pColor = vec4(intensity * color.rgb, 1) * texture(txtr, vUv);
 	}
 )";
+
+vector<dSkybox> skyboxes;
+vector<string> skyboxPaths{
+	"textures/skybox/maskonaive/",
+	"textures/skybox/classic-land/",
+	"textures/skybox/empty-space/",
+	"textures/skybox/dusk-ocean/"
+};
+int cur_skybox = 0;
 
 struct Camera {
 	float fov = 60;
@@ -200,7 +215,7 @@ MeshContainer large_tree_mesh;
 vector<vec3> large_tree_positions = {
 	{49, 0, 37}, {50, 0, 32}, {29, 0, 15}, {50, 0, 10},
 	{-10, 0, 32}, {-34, 0, 7}, {15, 0, -13}, {6, 0, -15},
-	{-0.75, 0, -0.5}
+	{-0.75, 0, 0.3}
 };
 
 struct Car {
@@ -228,6 +243,7 @@ struct Car {
 		mesh.draw(transform); 
 	}
 	void collide() {
+		if (pos.y < 0) pos.y = 0;
 		if (pos.x > 59.5) { pos.x = 59.5; }
 		else if (pos.x < -59.5) { pos.x = -59.5; }
 		else if (pos.z > 59.5) { pos.z = 59.5; }
@@ -238,32 +254,40 @@ struct Car {
 			//if (d < 1.0) vel = (pos - tree_pos); hard collision with tree
 		}
 	}
-	void update() {
+	void update(float dt) {
+		// Weight update by time delta for consistent effect of updates
+		//   regardless of framerate
+		float wt = 1 / (1000.0f / dt / 60.0f);
+		// Check if space key pressed ("drifting")
+		float drift = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) ? 0.5 : 1.0;
 		// Check for car turning with A/D
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			vec4 dirw = RotateY(-1.5) * dir;
+			float deg = wt * -1.5 * ((drift == 0.5) ? 1.25 : 1.0);
+			vec4 dirw = RotateY(deg) * dir;
 			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			vec4 dirw = RotateY(1.5) * dir;
+			float deg = wt * 1.5 * ((drift == 0.5) ? 1.25 : 1.0);
+			vec4 dirw = RotateY(deg) * dir;
 			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		vec3 force = vec3(0.0);
 		// Apply engine force if pressed (F = u{vel} * engine)
+		float turbo = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ? 1.5 : 1.0;
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-			force += dir * engine;
+			force += turbo * drift * dir * engine;
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-			force -= dir * engine;
+			force -= turbo * drift * dir * engine;
 		// Apply aerodynamic drag (F = - C{drag} * vel * |vel|)
 		force -= drag * vel * length(vel);
 		// Apply rolling resistance (F = - C{roll} * vel)
         // Weigh rolling resistance by up to 2x normal based on angle difference between direction and velocity
         float roll_wt = 1 - (dot(dir, vel) / length(dir) / length(vel));
         if (roll_wt > 1) roll_wt = 1 - (roll_wt - 1);
-        roll_wt = roll_wt * 2 + 1;
+        roll_wt = roll_wt * 4 + 1;
         if (length(vel) < 0.001) roll_wt = 1.0;
-		force -= roll_wt * roll * vel;
-		vec3 acc = force / mass;
+		force -= drift * roll_wt * roll * vel;
+		vec3 acc = wt * force / mass;
 		// Move velocity according to acceleration
 		vel += acc;
 		// Move position according to velocity
@@ -300,6 +324,10 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
         camera.lookAt(car.pos + 2.5 * car.dir);
         camera.up = vec3(0, 1, 0);
     }
+	if (key == GLFW_KEY_PAGE_UP && action == GLFW_PRESS) {
+		cur_skybox++;
+		if (cur_skybox >= skyboxes.size()) cur_skybox = 0;
+	}
 }
 
 void setup() {
@@ -308,19 +336,27 @@ void setup() {
 	glfwSetWindowSizeCallback(window, WindowResized);
 	glfwSwapInterval(1);
 	// Setup meshes
-	mat4 car_transform = Scale(0.5f) * Translate(0, 0.5, 0) * RotateY(-90);
-	MeshContainer car_mesh = MeshContainer("./objects/car.obj", "./textures/car.tga", car_transform);
+	mat4 car_transform = Scale(0.75f) * Translate(0, 0.5, 0) * RotateY(-90);
+	MeshContainer car_mesh = MeshContainer("objects/car.obj", "textures/car.png", car_transform);
 	car_mesh.allocate();
 	// Mesh, mass, engine force, rolling resistance, air drag
-	car = Car(car_mesh, 500.0, 1.5, 5.0, 10.0);
+	car = Car(car_mesh, 500.0, 1.5, 15.0, 10.0);
 	car.pos = vec3(2, 0, 0);
-	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "./textures/racetrack.jpg", false);
+	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "textures/racetrack.png", false);
 	floor_mesh.allocate();
-	mat4 large_tree_transform = Scale(2.0) * Translate(0, 1, 0);
-	large_tree_mesh = MeshContainer("./objects/largetree.obj", "./textures/largetree.jpg", large_tree_transform);
+	mat4 large_tree_transform = Scale(2.0) * Translate(0, 0.9, 0);
+	large_tree_mesh = MeshContainer("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
 	large_tree_mesh.allocate();
+	// Setup skyboxes
+	for (string path : skyboxPaths) {
+		dSkybox skybox;
+		skybox.setup();
+		skybox.loadCubemap(path, textureUnits++);
+		skyboxes.push_back(skybox);
+	}
 	// Set some GL drawing context settings
 	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_CULL_FACE);
@@ -331,6 +367,8 @@ void cleanup() {
 	car.mesh.deallocate();
 	floor_mesh.deallocate();
 	large_tree_mesh.deallocate();
+	for (dSkybox skybox : skyboxes)
+		skybox.cleanup();
 }
 
 void draw() {
@@ -338,8 +376,8 @@ void draw() {
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     if (camera_loc == 1) { // Third person chase camera
         vec3 cameraDir = (car.dir + 3 * car.vel) / 2;
-        camera.moveTo(car.pos + vec3(0, 1.5, 0) + -3 * cameraDir);
-        camera.lookAt(car.pos + 2.5 * cameraDir);
+        camera.moveTo(car.pos + vec3(0, 1.5, 0) + -5 * cameraDir);
+        camera.lookAt(car.pos + 4 * cameraDir);
         camera.up = vec3(0, 1, 0);
         camera.adjustFov(60 + length(car.vel) * 50);
     } else if (camera_loc == 2) { // Top-down camera
@@ -357,6 +395,7 @@ void draw() {
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.draw(Translate(pos));
 	car.draw();
+	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
 	glFlush();
 }
 
@@ -378,8 +417,12 @@ int main() {
 	glfwSetWindowPos(window, 100, 100);
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 	setup();
+	time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
-		car.update();
+		time_p cur = sys_clock::now();
+		double_ms since = cur - lastSim;
+		car.update(since.count());
+		lastSim = cur;
 		car.collide();
 		draw();
 		glfwPollEvents();

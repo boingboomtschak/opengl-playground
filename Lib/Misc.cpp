@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "STB_Image.h"
+#include "stb_image.h"
 
 // Misc
 
