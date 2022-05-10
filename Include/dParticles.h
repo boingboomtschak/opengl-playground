@@ -1,0 +1,39 @@
+// dParticles.h : Particle emitting system
+
+#ifndef DPARTICLES_HDR
+#define DPARTICLES_HDR
+
+#include <glad.h>
+#include <vector>
+#include <stdexcept>
+#include "VecMat.h"
+#include "GLXtras.h"
+#include "GeomUtils.h"
+
+using std::vector;
+using std::runtime_error;
+
+struct dParticle {
+    vec3 pos, vel;
+    vec4 color;
+    float life = 0.0f;
+};
+
+struct dParticles {
+    int lastUsed = 0;
+    int num_particles = 0;
+    int max_particles = 500;
+    vec2 y_variance = vec2(0.03f, 0.06f);
+    vec2 xz_variance = vec2(-0.01f, 0.01f);
+    vec3 gravity = vec3(0, -0.01f, 0);
+    float life_dt = 0.02f;
+    dParticles() { };
+    vector<dParticle> particles;
+    void setup();
+    void cleanup();
+    int findDead();
+    void createParticle(vec3 pos, vec3 color);
+    void draw(mat4 vp);
+};
+
+#endif

@@ -67,7 +67,7 @@ void Sprite::Initialize(vector<string> &imageFiles, string matFile) {
 
 void Sprite::Initialize(vector<string> &imageFiles, const char *matFile) {
 	textureUnit = spriteTextureUnit++;
-	nFrames = imageFiles.size();
+	nFrames = (GLuint)imageFiles.size();
 	textureNames.resize(nFrames);
 	for (size_t i = 0; i < nFrames; i++)
 		textureNames[i] = LoadTexture(imageFiles[i].c_str(), textureUnit);

@@ -87,7 +87,7 @@ int textureUnitLower = 2, textureUnitUpper = 3, textureUnitNumber = 4; // this d
 
 int MakeLetterTexture(unsigned char *image, int textureUnit) {
 	// create and load texture raster
-	int nchars = strlen(lowerCaseImage), npixels = nchars/2, height = 13, width = npixels/height;
+	int nchars = (int)strlen(lowerCaseImage), npixels = nchars/2, height = 13, width = npixels/height;
 	unsigned char *pixels = new unsigned char[3*npixels], *p = pixels, *n = (unsigned char *) image;
 	for (int i = 0; i < npixels; i++) {
 		char c1 = *n++, c2 = *n++;
@@ -102,7 +102,7 @@ int MakeLetterTexture(unsigned char *image, int textureUnit) {
 
 int MakeNumberTexture(unsigned char *image, int textureUnit) {
 	// create and load texture raster
-	int nchars = strlen(numberImage), npixels = nchars/2, height = 10, width = npixels/height;
+	int nchars = (int)strlen(numberImage), npixels = nchars/2, height = 10, width = npixels/height;
 	unsigned char *pixels = new unsigned char[3*npixels], *p = pixels, *n = (unsigned char *) image;
 	for (int i = 0; i < npixels; i++) {
 		char c1 = *n++, c2 = *n++;
@@ -118,7 +118,7 @@ int MakeNumberTexture(unsigned char *image, int textureUnit) {
 void Letter(int x, int y, char c, vec3 color, float ptSize) {
 	if (c < 48 || c == 61 || c == 94) { // 32(space), 40((), 41()), 43(+), 45(-), 46(.), 47(/), 61(=), 94(^)
 		UseDrawShader();
-		int size = (int) ptSize, h = (int)(ptSize*.5f), hh = (int)(ptSize*.75f);
+        int size = (int) ptSize, h = (int)(ptSize*.5f);
 		if (c == 40) {
 			vec2 p1(x+h, y+size+1), p2(x+2, y+(int)(.75f*ptSize)), p3(x+2, y+(int)(.25f*ptSize)), p4(x+h, y-1);
 			Line(p1, p2, 2, color); Line(p2, p3, 2, color); Line(p3, p4, 2, color);

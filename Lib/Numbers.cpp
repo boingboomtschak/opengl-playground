@@ -55,7 +55,7 @@ int numbersTextureUnit = 0;
 void Number(int x, int y, unsigned int n, vec3 color, float ptSize) {
     if (!textureName) {
         // create and load texture raster
-        int nchars = strlen(image), npixels = nchars/2, height = 10, width = npixels/height;
+        int nchars = (int)strlen(image), npixels = nchars/2, height = 10, width = npixels/height;
         unsigned char *pixels = new unsigned char[3*npixels], *p = pixels, *n = (unsigned char *) image;
         for (int i = 0; i < npixels; i++) {
             char c1 = *n++, c2 = *n++;

@@ -17,23 +17,23 @@ using std::max;
 
 // Returns float between min and max, defaults to 0 and 1, respectively
 // Best practice would be to seed rand() beforehand, but not guaranteed in this fn
-float rand_float(float min = 0, float max = 1) { return min + (float)rand() / (RAND_MAX / (max - min)); }
+inline float rand_float(float min = 0, float max = 1) { return min + (float)rand() / (RAND_MAX / (max - min)); }
 
 // Returns random vec3 with all members between 0 and 1
-vec3 rand_vec3(float min = -1, float max = 1) { return vec3(min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min))); }
+inline vec3 rand_vec3(float min = -1, float max = 1) { return vec3(min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min)), min + (float)rand() / (RAND_MAX / (max - min))); }
 
 // Returns random vec3 with length of 1 (usually a direction / velocity vector)
-vec3 rand_dir() {
+inline vec3 rand_dir() {
 	float theta = rand_float(0, 2 * M_PI);
 	float z = rand_float(-1, 1);
 	return vec3(sqrt(1 - (z * z)) * cos(theta), sqrt(1 - (z * z)) * sin(theta), z);
 }
 
 // Returns float distance between two vec3 objs
-float dist(vec3 p1, vec3 p2) { return (float)sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2) + pow(p2.z - p1.z, 2)); }
+inline float dist(vec3 p1, vec3 p2) { return (float)sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2) + pow(p2.z - p1.z, 2)); }
 
 // Returns float distance from point p to segment formed by points v and w (VW)
-float dist_to_segment(vec3 p, vec3 v, vec3 w) {
+inline float dist_to_segment(vec3 p, vec3 v, vec3 w) {
 	float l = dist(v, w);
 	if (l == 0.0) return dist(p, v);
 	float t = max(0.0f, min(1.0f, dot(p - v, w - v)));
@@ -42,10 +42,10 @@ float dist_to_segment(vec3 p, vec3 v, vec3 w) {
 }
 
 // Returns true if the point p is to the left of the segment formed by points v and w (VW)
-bool point_segment_left(vec3 p, vec3 v, vec3 w) { return ((w.x - v.x) * (p.y - v.y) - (w.y - v.y) * (p.x - v.x)) > 0; }
+inline bool point_segment_left(vec3 p, vec3 v, vec3 w) { return ((w.x - v.x) * (p.y - v.y) - (w.y - v.y) * (p.x - v.x)) > 0; }
 
 // Returns centroid of a set of points
-vec3 Centroid(vector<vec3> points) {
+inline vec3 Centroid(vector<vec3> points) {
 	vec3 c = vec3(0.0f);
 	for (size_t i = 0; i < points.size(); i++) {
 		c += points[i];
@@ -55,7 +55,7 @@ vec3 Centroid(vector<vec3> points) {
 }
 
 // Samples 
-vector<vec3> SampleCircle(vec3 center, int num, int radius) {
+inline vector<vec3> SampleCircle(vec3 center, int num, int radius) {
 	vector<vec3> v;
 	for (int i = 0; i < num; i++) {
 		float r = radius * (float)sqrt(rand_float());
@@ -68,7 +68,7 @@ vector<vec3> SampleCircle(vec3 center, int num, int radius) {
 }
 
 // Recursive function used for QuickHull(), unused otherwise
-vector<vec3> _FindHull(vector<vec3> points, vec3 p, vec3 q) {
+inline vector<vec3> _FindHull(vector<vec3> points, vec3 p, vec3 q) {
 	vector<vec3> hull;
 	// Return if no more points
 	if (points.size() == 0) {
@@ -80,7 +80,8 @@ vector<vec3> _FindHull(vector<vec3> points, vec3 p, vec3 q) {
 	for (size_t i = 0; i < points.size(); i++) {
 		float d = dist_to_segment(points[i], p, q);
 		if (d > m_dist) {
-			m_dist = d, m = points[i];
+            m_dist = d;
+            m = points[i];
 		}
 	}
 	hull.push_back(m);
@@ -107,7 +108,7 @@ vector<vec3> _FindHull(vector<vec3> points, vec3 p, vec3 q) {
 }
 
 // Finds the convex hull of a series of points
-vector<vec3> QuickHull(vector<vec3> points) {
+inline vector<vec3> QuickHull(vector<vec3> points) {
 	vector<vec3> hull;
 	vec3 c = Centroid(points);
 	// Find left and rightmost points
@@ -139,7 +140,7 @@ vector<vec3> QuickHull(vector<vec3> points) {
 }
 
 // Creates an orientation matrix 
-mat4 Orientation(vec3 forward, vec3 up) {
+inline mat4 Orientation(vec3 forward, vec3 up) {
 	vec3 z = normalize(forward);
 	vec3 x = normalize(cross(up, z));
 	vec3 y = normalize(cross(z, x));

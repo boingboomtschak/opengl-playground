@@ -1,7 +1,10 @@
 // Scene.cpp - camera and meshes
 
 #include <glad.h>
-#include <GLFW/glfw3.h>
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#include "GLFW/glfw3.h"
+#pragma clang diagnostic pop
 #include <stdio.h>
 #include <time.h>
 #include "CameraArcball.h"
@@ -19,7 +22,7 @@ Scene::~Scene() {
 }
 
 bool Scene::AddMesh(const char *objName, const char *texName, mat4 *m) {
-	int nmeshes = meshes.size();
+	int nmeshes = (int)meshes.size();
 	meshes.resize(nmeshes+1);
 	Mesh &mesh = meshes[nmeshes];
 	bool ok = texName && strlen(texName)?
@@ -89,11 +92,11 @@ int Scene::ReadScene(const char *filename, CameraAB *camera) {
 		AddMesh(meshName, texName, &m);
 	}
 	fclose(file);
-	return meshes.size();
+	return (int)meshes.size();
 }
 
 void Scene::ListScene() {
-	int nmeshes = meshes.size();
+	int nmeshes = (int)meshes.size();
 	printf("%i meshes:\n", nmeshes);
 	for (int i = 0; i < nmeshes; i++)
 		printf("  %i: %s\n", i, meshes[i].objFilename.c_str());

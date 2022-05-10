@@ -154,6 +154,8 @@ bool WriteTarga(const char *filename) {
 
 void LoadTexture(unsigned char *pixels, int width, int height, int bpp, GLuint textureUnit, GLuint textureName, bool bgr, bool mipmap) {
 	unsigned char *temp = pixels;
+    // -- NEVER EXECUTED -- 
+    /*
 	if (false && bpp == 4) {
 		int bytesPerImage = 3*width*height;
 		temp = new unsigned char[bytesPerImage];
@@ -163,6 +165,7 @@ void LoadTexture(unsigned char *pixels, int width, int height, int bpp, GLuint t
 				for (int k = 0; k < 3; k++)
 					*t++ = *p++;
 	}
+     */
 	glActiveTexture(GL_TEXTURE0+textureUnit);       // active texture corresponds with textureUnit
 	glBindTexture(GL_TEXTURE_2D, textureName);      // bind active texture to textureName
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);          // accommodate width not multiple of 4

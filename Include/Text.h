@@ -5,7 +5,10 @@
 #define TEXT_HDR
 
 #include "glad.h"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 #include "GLFW/glfw3.h"
+#pragma clang diagnostic pop
 #include "GLXtras.h"
 
 class Character {

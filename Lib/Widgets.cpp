@@ -1,7 +1,10 @@
 // Widgets.cpp (c) 2019-2022 Jules Bloomenthal
 
 #include <glad.h>
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 #include <GLFW/glfw3.h>
+#pragma clang diagnostic pop
 #include <GL/glu.h>
 #include "Draw.h"
 #include "GLXtras.h"
@@ -118,7 +121,6 @@ vec3 Mover::Drag(int xMouse, int yMouse, mat4 modelview, mat4 persp) {
 void  Mover::Wheel(double spin) {
 	if (point || transform) {
 		vec3 p = point? *point : vec3((*transform)[0][3], (*transform)[1][3], (*transform)[2][3]);
-		vec3 dif = .02f*normalize(cameraPosition-p);
 		p += .02f*(float)spin*normalize(cameraPosition-p);
 		if (point) *point = p;
 		if (transform) { (*transform)[0][3] = p.x; (*transform)[1][3] = p.y; (*transform)[2][3] = p.z; }
@@ -468,7 +470,7 @@ Button::Button(const char *cname, int x, int y, int w, int h, vec3 col)
 void Button::Draw(const char *nameOverride, float textSize, vec3 *colorOverride, vec3 textColor) {
 	// assume ScreenMode and no depth-test
 	const char *s = nameOverride? nameOverride : name.c_str();
-	int nchars = strlen(s), npixels = int(textSize*(float)nchars);
+	int nchars = (int)strlen(s), npixels = int(textSize*(float)nchars);
 	Quad(x, y, x, y+h, x+w, y+h, x+w, y, true, colorOverride? *colorOverride : color, 1, 2);
 	int midX = x+w/2, midY = y-h/2;
 	Text((int) (midX-npixels/2), (int) (midY+(int)(1.5f*textSize)), textColor, textSize, nameOverride? nameOverride : name.c_str());

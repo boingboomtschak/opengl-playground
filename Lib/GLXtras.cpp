@@ -292,7 +292,7 @@ bool ReadProgramBinary(GLuint program, const char *filename) {
 	if (in != NULL) {
 		fseek(in, 0, SEEK_END);
 		long filesize = ftell(in);
-		int sizeEnum = sizeof(GLenum), sizeBinary = filesize-sizeEnum;
+		int sizeEnum = sizeof(GLenum), sizeBinary = (int)(filesize-sizeEnum);
 		std::vector<char> data(sizeBinary);
 		GLenum binaryFormat;
 		fseek(in, 0, 0);

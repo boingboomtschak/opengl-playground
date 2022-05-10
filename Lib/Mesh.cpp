@@ -200,7 +200,7 @@ void Enable(int id, int ncomps, int offset) {
 }
 
 void Mesh::Buffer() {
-	int nPts = points.size(), nNrms = normals.size(), nUvs = uvs.size();
+	int nPts = (int)points.size(), nNrms = (int)normals.size(), nUvs = (int)uvs.size();
 	if (!nPts) { printf("mesh missing points\n"); return; }
 	// create vertex buffer
 	glGenBuffers(1, &vBufferId);
@@ -225,7 +225,7 @@ void Mesh::Buffer() {
 }
 
 void Mesh::Display(CameraAB camera, bool lines) {
-	int nTris = triangles.size(), nQuads = quads.size();
+	int nTris = (int)triangles.size(), nQuads = (int)quads.size();
 	bool useTexture = textureUnit > 0 && uvs.size() > 0;
 	// enable shader and vertex array object
 	int shader = UseMeshShader();
@@ -358,7 +358,7 @@ int IntersectWithLine(vec3 p1, vec3 p2, vector<TriInfo> &triInfos, float &retAlp
 			if (alpha < minAlpha) {
 				if (IsInside(MajPln(inter, t.majorPlane), t.p1, t.p2, t.p3)) {
 					minAlpha = alpha;
-					picked = i;
+					picked = (int)i;
 				}
 			}
 		}
@@ -456,7 +456,7 @@ void SetVertexNormals(vector<vec3> &points, vector<int3> &triangles, vector<vec3
 
 bool ReadWord(char* &ptr, char *word, int charLimit) {
 	ptr += strspn(ptr, " \t");                  // skip white space
-	int nChars = strcspn(ptr, " \t");           // get # non-white-space characters
+	int nChars = (int)strcspn(ptr, " \t");           // get # non-white-space characters
 	if (!nChars)
 		return false;                           // no non-space characters
 	int nRead = charLimit-1 < nChars? charLimit-1 : nChars;
@@ -637,7 +637,6 @@ bool ReadAsciiObj(const char    *filename,
 		return false;
 	vec2 t;
 	vec3 v;
-	int group = 0;
 	char line[LineLim], word[WordLim];
 	vector<vec3> tmpVertices, tmpNormals;
 	vector<vec2> tmpTextures;
@@ -672,14 +671,15 @@ bool ReadAsciiObj(const char    *filename,
 				else
 					strcpy(name, word);
 				mtlMap = ReadMaterial(name);
-				if (false) {
+                // -- NEVER EXECUTED --
+				/*if (false) {
 					int count = 0;
 					for (MtlMap::iterator iter = mtlMap.begin(); iter != mtlMap.end(); iter++) {
 						string s = (string) iter->first;
 						Mtl m = (Mtl) iter->second;
 						printf("m[%i].name=%s,.kd=(%3.2f,%3.2f,%3.2f),s=%s\n", count++, m.name.c_str(), m.kd.x, m.kd.y, m.kd.z, s.c_str());
 					}
-				}					
+				} */
 			}
 		}
 		else if (!strcmp(word, "usemtl")) {
@@ -689,7 +689,7 @@ bool ReadAsciiObj(const char    *filename,
 					printf("no such material: %s\n", word);
 				else {
 					Mtl m = it->second;
-					m.startTriangle = triangles.size();
+					m.startTriangle = (int)triangles.size();
 					if (triangleMtls)
 						triangleMtls->push_back(m);
 				}
@@ -698,7 +698,7 @@ bool ReadAsciiObj(const char    *filename,
 		else if (!strcmp(word, "g")) {
 			if (ReadWord(ptr, word, WordLim)) {				// read group name
 				if (triangleGroups)
-					triangleGroups->push_back(Group(triangles.size(), string(word)));
+					triangleGroups->push_back(Group((int)triangles.size(), string(word)));
 			}
 		}
 		else if (!strcmp(word, "v")) {                      // read vertex coordinates
@@ -747,7 +747,7 @@ bool ReadAsciiObj(const char    *filename,
 				int3 key(vid, tid, nid);
 				VidMap::iterator it = vidMap.find(key);
 				if (it == vidMap.end()) {
-					int nvrts = points.size();
+					int nvrts = (int)points.size();
 					vidMap[key] = nvrts;
 					points.push_back(tmpVertices[vid]);
 					if (normals && (int) tmpNormals.size() > nid)
@@ -759,7 +759,7 @@ bool ReadAsciiObj(const char    *filename,
 				else
 					vids.push_back(it->second);
 			}
-			int nids = vids.size();
+			int nids = (int)vids.size();
 			if (nids == 3) {
 				int id1 = vids[0], id2 = vids[1], id3 = vids[2];
 				if (normals && (int) normals->size() > id1) {
@@ -792,16 +792,16 @@ bool ReadAsciiObj(const char    *filename,
 		}
 	} // end read til end of file
 	if (triangleGroups) {
-		int nGroups = triangleGroups->size();
+		int nGroups = (int)triangleGroups->size();
 		for (int i = 0; i < nGroups; i++) {
-			int next = i < nGroups-1? (*triangleGroups)[i+1].startTriangle : triangles.size();
+			int next = i < nGroups-1? (*triangleGroups)[i+1].startTriangle : (int)triangles.size();
 			(*triangleGroups)[i].nTriangles = next-(*triangleGroups)[i].startTriangle;
 		}
 	}
 	if (triangleMtls) {
-		int nMtls = triangleMtls->size();
+		int nMtls = (int)triangleMtls->size();
 		for (int i = 0; i < nMtls; i++) {
-			int next = i < nMtls-1? (*triangleMtls)[i+1].startTriangle : triangles.size();
+			int next = i < nMtls-1? (*triangleMtls)[i+1].startTriangle : (int)triangles.size();
 			(*triangleMtls)[i].nTriangles = next-(*triangleMtls)[i].startTriangle;
 		}
 	}

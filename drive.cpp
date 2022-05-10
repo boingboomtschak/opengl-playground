@@ -3,7 +3,10 @@
 #define _USE_MATH_DEFINES
 #include <glad.h>
 #define GLFW_INCLUDE_NONE
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 #include <GLFW/glfw3.h>
+#pragma clang diagnostic pop
 #include <chrono>
 #include <vector>
 #include <string>
@@ -14,6 +17,7 @@
 #include "Mesh.h"
 #include "Misc.h"
 #include "dSkybox.h"
+#include "dParticles.h"
 
 using std::vector;
 using std::string;
@@ -324,7 +328,7 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
         camera.lookAt(car.pos + 2.5 * car.dir);
         camera.up = vec3(0, 1, 0);
     }
-	if (key == GLFW_KEY_PAGE_UP && action == GLFW_PRESS) {
+	if (key == GLFW_KEY_BACKSLASH && action == GLFW_PRESS) {
 		cur_skybox++;
 		if (cur_skybox >= skyboxes.size()) cur_skybox = 0;
 	}

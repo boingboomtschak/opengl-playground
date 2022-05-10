@@ -102,7 +102,7 @@ struct Mtl {
 	string name;
 	vec3 ka, kd, ks;
 	int startTriangle = 0, nTriangles = 0;
-	Mtl() {startTriangle = -1, nTriangles = 0; }
+    Mtl() { startTriangle = -1; nTriangles = 0; }
 	Mtl(int start, string n, vec3 a, vec3 d, vec3 s) : startTriangle(start), name(n), ka(a), kd(d), ks(s) { }
 };
 
