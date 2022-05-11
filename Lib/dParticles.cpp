@@ -20,8 +20,8 @@ vector<vec3> particlePoints {
 
 vector<int3> particleTriangles {
     {0, 1, 2}, {2, 3, 0}, // front
-    {4, 5, 6}, {6, 7, 4}, // back
-    {8, 9, 10}, {10, 11, 8}, // left
+    {6, 5, 4}, {4, 7, 6}, // back
+    {10, 9, 8}, {8, 11, 10}, // left
     {12, 13, 14}, {14, 15, 12}, // right
     {16, 17, 18}, {18, 19, 16}, // top
     {20, 21, 22}, {22, 23, 20}  // bottom
@@ -32,7 +32,7 @@ const char* particleVert = R"(
     in vec3 point;
     uniform mat4 mvp;
     void main() {
-        
+        gl_Position = mvp * vec4(point, 1);
     }
 )";
 
@@ -41,7 +41,7 @@ const char* particleFrag = R"(
     uniform vec4 color;
     out vec4 fragColor;
     void main() {
-        fragColor = vec4(pColor, 1.0);
+        fragColor = color;
     }
 )";
 
@@ -81,7 +81,7 @@ void dParticles::cleanup() {
 
 int dParticles::findDead() {
     // Search for dead particle starting from last used particle
-    for (int i = lastUsed; i < num_particles; i++) {
+    for (int i = lastUsed; i < max_particles; i++) {
         if (particles[i].life <= 0.0f) {
             lastUsed = i;
             return i;
@@ -103,7 +103,7 @@ void dParticles::createParticle(vec3 pos, vec3 color) {
     int p = findDead();
     particles[p].pos = pos;
     particles[p].color = color;
-    particles[p].life = 0.0f;
+    particles[p].life = 1.0f;
     particles[p].vel = vec3(
         rand_float(xz_variance.x, xz_variance.y),
         rand_float(y_variance.x, y_variance.y),
@@ -114,16 +114,17 @@ void dParticles::createParticle(vec3 pos, vec3 color) {
 void dParticles::draw(mat4 vp) {
     glUseProgram(particleShader);
     glBindVertexArray(particleVArray);
-    for (dParticle particle : particles) {
-        if (particle.life > 0.0f) {
+    for (int i = 0; i < max_particles; i++) {
+        if (particles[i].life > 0.0f) {
             // Run particle
-            particle.life -= life_dt;
-            particle.pos += particle.vel;
-            particle.vel -= gravity;
+            particles[i].life -= life_dt;
+            particles[i].pos += particles[i].vel;
+            particles[i].vel += gravity;
+            if (particles[i].pos.y < 0.0f) particles[i].pos.y = 0.0f;
             // Draw particle
-            SetUniform(particleShader, "mvp", Translate(particle.pos) * vp);
-            SetUniform(particleShader, "color", particle.color);
-            glDrawArrays(GL_TRIANGLES, 0, 0); // TODO
+            SetUniform(particleShader, "mvp", vp * Translate(particles[i].pos) * Scale(particle_size));
+            SetUniform(particleShader, "color", particles[i].color);
+            glDrawElements(GL_TRIANGLES, (GLsizei)(particleTriangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
         }
     }
     glBindVertexArray(0);

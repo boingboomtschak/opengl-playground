@@ -84,6 +84,8 @@ vector<string> skyboxPaths{
 };
 int cur_skybox = 0;
 
+dParticles particleSystem;
+
 struct Camera {
 	float fov = 60;
 	float zNear = 0.1f;
@@ -292,10 +294,17 @@ struct Car {
         if (length(vel) < 0.001) roll_wt = 1.0;
 		force -= drift * roll_wt * roll * vel;
 		vec3 acc = wt * force / mass;
+        // Spawn drifting particles if roll wt and speed higher than threshold
+        if (length(vel) > 0.075f && roll_wt > 1.6) {
+            particleSystem.createParticle(pos - 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
+            particleSystem.createParticle(pos + 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
+        }
+        
 		// Move velocity according to acceleration
 		vel += acc;
 		// Move position according to velocity
 		pos += vel;
+        
 		
 	}
 } car;
@@ -358,6 +367,8 @@ void setup() {
 		skybox.loadCubemap(path, textureUnits++);
 		skyboxes.push_back(skybox);
 	}
+    // Setup particle system
+    particleSystem.setup();
 	// Set some GL drawing context settings
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
@@ -373,6 +384,7 @@ void cleanup() {
 	large_tree_mesh.deallocate();
 	for (dSkybox skybox : skyboxes)
 		skybox.cleanup();
+    particleSystem.cleanup();
 }
 
 void draw() {
@@ -399,6 +411,7 @@ void draw() {
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.draw(Translate(pos));
 	car.draw();
+    particleSystem.draw(camera.persp * camera.view);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
 	glFlush();
 }

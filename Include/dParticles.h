@@ -21,12 +21,12 @@ struct dParticle {
 
 struct dParticles {
     int lastUsed = 0;
-    int num_particles = 0;
     int max_particles = 500;
-    vec2 y_variance = vec2(0.03f, 0.06f);
+    float particle_size = 0.02f;
+    float life_dt = 0.02f;
+    vec2 y_variance = vec2(0.01f, 0.02f);
     vec2 xz_variance = vec2(-0.01f, 0.01f);
     vec3 gravity = vec3(0, -0.01f, 0);
-    float life_dt = 0.02f;
     dParticles() { };
     vector<dParticle> particles;
     void setup();
