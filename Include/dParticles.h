@@ -22,9 +22,9 @@ struct dParticle {
 struct dParticles {
     int lastUsed = 0;
     int max_particles = 500;
-    float particle_size = 0.02f;
+    float particle_size = 0.015f;
     float life_dt = 0.02f;
-    vec2 y_variance = vec2(0.01f, 0.02f);
+    vec2 y_variance = vec2(0.03f, 0.05f);
     vec2 xz_variance = vec2(-0.01f, 0.01f);
     vec3 gravity = vec3(0, -0.01f, 0);
     dParticles() { };
@@ -33,7 +33,7 @@ struct dParticles {
     void cleanup();
     int findDead();
     void createParticle(vec3 pos, vec3 color);
-    void draw(mat4 vp);
+    void draw(mat4 vp, GLuint texUnit = 0, GLuint texture = 0, float xzrange = 0);
 };
 
 #endif

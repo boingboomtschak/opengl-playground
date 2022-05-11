@@ -39,15 +39,20 @@ const char* particleVert = R"(
 const char* particleFrag = R"(
     #version 410 core
     uniform vec4 color;
+    uniform vec2 uv;
+    uniform int useTexture = 0;
+    uniform sampler2D colorTexture;
     out vec4 fragColor;
     void main() {
-        fragColor = color;
+        if (useTexture == 0) {
+            fragColor = color;
+        } else { 
+            fragColor = texture(colorTexture, uv) + color;
+        }
     }
 )";
 
 }
-
-
 
 void dParticles::setup() {
     if (!particleShader)
@@ -111,7 +116,7 @@ void dParticles::createParticle(vec3 pos, vec3 color) {
     );
 }
 
-void dParticles::draw(mat4 vp) {
+void dParticles::draw(mat4 vp, GLuint texUnit, GLuint texture, float xzrange) {
     glUseProgram(particleShader);
     glBindVertexArray(particleVArray);
     for (int i = 0; i < max_particles; i++) {
@@ -123,7 +128,20 @@ void dParticles::draw(mat4 vp) {
             if (particles[i].pos.y < 0.0f) particles[i].pos.y = 0.0f;
             // Draw particle
             SetUniform(particleShader, "mvp", vp * Translate(particles[i].pos) * Scale(particle_size));
-            SetUniform(particleShader, "color", particles[i].color);
+            if (texUnit > 0) {
+                glActiveTexture(GL_TEXTURE0 + texUnit);
+                glBindTexture(GL_TEXTURE_2D, texture);
+                vec2 uv = vec2(particles[i].pos.x / (xzrange * 2.0f) + 0.5, particles[i].pos.z / (xzrange * 2.0f) + 0.5);
+                float value = rand_float(-0.2, 0.2);
+                vec4 color = vec4(value, value, value, 1.0f);
+                SetUniform(particleShader, "useTexture", 1);
+                SetUniform(particleShader, "uv", uv);
+                SetUniform(particleShader, "colorTexture", (int)texUnit);
+                SetUniform(particleShader, "color", color);
+            } else {
+                SetUniform(particleShader, "useTexture", 0);
+                SetUniform(particleShader, "color", particles[i].color);
+            }
             glDrawElements(GL_TRIANGLES, (GLsizei)(particleTriangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
         }
     }

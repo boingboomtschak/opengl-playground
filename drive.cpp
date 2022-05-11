@@ -24,7 +24,7 @@ using std::string;
 using std::runtime_error;
 
 GLFWwindow* window;
-int win_width = 800, win_height = 800;
+int win_width = 1000, win_height = 800;
 GLuint textureUnits = 1;
 
 typedef std::chrono::system_clock::time_point time_p;
@@ -101,7 +101,7 @@ struct Camera {
 		loc = vec3(-1.5, 2, 0);
 		look = vec3(0, 0, 0);
 		view = LookAt(loc, look, up);
-		persp = Perspective(fov, width / height, zNear, zFar);
+		persp = Perspective(fov, (float)width / (float)height, zNear, zFar);
 	}
 	void moveTo(vec3 _loc) {
 		loc = _loc;
@@ -113,12 +113,12 @@ struct Camera {
 	}
 	void adjustFov(float _fov) {
 		fov = _fov;
-		persp = Perspective(fov, win_width / win_height, zNear, zFar);
+		persp = Perspective(fov, (float)win_width / (float)win_height, zNear, zFar);
 	}
 	void resize(int _width, int _height) {
 		width = _width;
 		height = _height;
-		persp = Perspective(fov, width / height, zNear, zFar);
+		persp = Perspective(fov, (float)width / (float)height, zNear, zFar);
 	}
 } camera;
 
@@ -295,7 +295,7 @@ struct Car {
 		force -= drift * roll_wt * roll * vel;
 		vec3 acc = wt * force / mass;
         // Spawn drifting particles if roll wt and speed higher than threshold
-        if (length(vel) > 0.075f && roll_wt > 1.6) {
+        if (length(vel) > 0.06f && roll_wt > 1.6) {
             particleSystem.createParticle(pos - 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
             particleSystem.createParticle(pos + 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
         }
@@ -411,7 +411,7 @@ void draw() {
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.draw(Translate(pos));
 	car.draw();
-    particleSystem.draw(camera.persp * camera.view);
+    particleSystem.draw(camera.persp * camera.view, floor_mesh.texUnit, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
 	glFlush();
 }
@@ -431,8 +431,9 @@ int main() {
 	if (!window)
 		throw runtime_error("Failed to create GLFW window!");
 	glfwMakeContextCurrent(window);
-	glfwSetWindowPos(window, 100, 100);
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+	glfwSetWindowPos(window, 100, 100);
+	glfwSwapInterval(1);
 	setup();
 	time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {

@@ -24,7 +24,7 @@ inline vec3 rand_vec3(float min = -1, float max = 1) { return vec3(min + (float)
 
 // Returns random vec3 with length of 1 (usually a direction / velocity vector)
 inline vec3 rand_dir() {
-	float theta = rand_float(0, 2 * M_PI);
+	float theta = rand_float(0, 2.0f * (float)M_PI);
 	float z = rand_float(-1, 1);
 	return vec3(sqrt(1 - (z * z)) * cos(theta), sqrt(1 - (z * z)) * sin(theta), z);
 }
@@ -59,7 +59,7 @@ inline vector<vec3> SampleCircle(vec3 center, int num, int radius) {
 	vector<vec3> v;
 	for (int i = 0; i < num; i++) {
 		float r = radius * (float)sqrt(rand_float());
-		float theta = rand_float(0.0f, 2 * M_PI);
+		float theta = rand_float(0.0f, 2.0f * (float)M_PI);
 		float x = center.x + r * cos(theta);
 		float y = center.y + r * sin(theta);
 		v.push_back(vec3(x, y, center.z));
