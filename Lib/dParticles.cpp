@@ -116,15 +116,15 @@ void dParticles::createParticle(vec3 pos, vec3 color) {
     );
 }
 
-void dParticles::draw(mat4 vp, GLuint texture, float xzrange) {
+void dParticles::draw(float dt, mat4 vp, GLuint texture, float xzrange) {
     glUseProgram(particleShader);
     glBindVertexArray(particleVArray);
     for (int i = 0; i < max_particles; i++) {
         if (particles[i].life > 0.0f) {
             // Run particle
-            particles[i].life -= life_dt;
-            particles[i].pos += particles[i].vel;
-            particles[i].vel += gravity;
+            particles[i].life -= dt * life_dt;
+            particles[i].pos += dt * particles[i].vel;
+            particles[i].vel += dt * gravity;
             if (particles[i].pos.y < 0.0f) particles[i].pos.y = 0.0f;
             // Draw particle
             SetUniform(particleShader, "mvp", vp * Translate(particles[i].pos) * Scale(particle_size));

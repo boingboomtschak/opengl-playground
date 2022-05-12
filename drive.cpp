@@ -24,7 +24,11 @@ using std::string;
 using std::runtime_error;
 
 GLFWwindow* window;
-int win_width = 1000, win_height = 800;
+
+int windowed_width = 1000, windowed_height = 800;
+int win_width = windowed_width, win_height = windowed_height;
+bool fullscreen = false;
+float dt;
 
 GLuint shadowProgram = 0;
 GLuint shadowFramebuffer = 0;
@@ -252,6 +256,7 @@ struct Car {
 	float engine; // engine force
 	float roll; // rolling resistance
 	float drag; // aerodynamic drag constant
+	float last_pt = 0.0f;
 	vec3 pos; // position
 	vec3 dir; // direction
 	vec3 vel; // velocity
@@ -289,17 +294,17 @@ struct Car {
 	void update(float dt) {
 		// Weight update by time delta for consistent effect of updates
 		//   regardless of framerate
-		float wt = 1 / (1000.0f / dt / 60.0f);
+		last_pt += dt;
 		// Check if space key pressed ("drifting")
 		float drift = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) ? 0.5 : 1.0;
 		// Check for car turning with A/D
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			float deg = wt * -1.5 * ((drift == 0.5) ? 1.25 : 1.0);
+			float deg = dt * -1.5 * ((drift == 0.5) ? 1.25 : 1.0);
 			vec4 dirw = RotateY(deg) * dir;
 			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			float deg = wt * 1.5 * ((drift == 0.5) ? 1.25 : 1.0);
+			float deg = dt * 1.5 * ((drift == 0.5) ? 1.25 : 1.0);
 			vec4 dirw = RotateY(deg) * dir;
 			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
@@ -319,19 +324,20 @@ struct Car {
         roll_wt = roll_wt * 4 + 1;
         if (length(vel) < 0.001) roll_wt = 1.0;
 		force -= drift * roll_wt * roll * vel;
-		vec3 acc = wt * force / mass;
-        // Spawn drifting particles if roll wt and speed higher than threshold
-        if (length(vel) > 0.06f && roll_wt > 1.6) {
-            particleSystem.createParticle(pos - 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
-            particleSystem.createParticle(pos + 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
-        }
-        
+		vec3 acc = force / mass;
+		// Using last_pt to limit particles by dt
+		if (last_pt > 0.5f) {
+			last_pt = 0.0f;
+			// Spawn drifting particles if roll wt and speed higher than threshold
+			if (length(vel) > 0.16f && roll_wt > 1.6) {
+				particleSystem.createParticle(pos - 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
+				particleSystem.createParticle(pos + 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
+			}
+		}
 		// Move velocity according to acceleration
-		vel += acc;
+		vel += dt * acc;
 		// Move position according to velocity
-		pos += vel;
-        
-		
+		pos += dt * vel;
 	}
 } car;
 
@@ -365,10 +371,26 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
         camera.moveTo(car.pos + vec3(0, 1.5, 0) + -3 * car.dir);
         camera.lookAt(car.pos + 2.5 * car.dir);
         camera.up = vec3(0, 1, 0);
+		camera.adjustFov(70);
     }
 	if (key == GLFW_KEY_BACKSLASH && action == GLFW_PRESS) {
 		cur_skybox++;
 		if (cur_skybox >= skyboxes.size()) cur_skybox = 0;
+	}
+	if (key == GLFW_KEY_F && action == GLFW_PRESS) {
+		if (fullscreen) {
+			win_width = windowed_width;
+			win_height = windowed_height;
+			glfwSetWindowMonitor(window, NULL, 100, 100, win_width, win_height, 0);
+			fullscreen = false;
+		} else {
+			GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+			if (monitor != NULL) {
+				const GLFWvidmode* videoMode = glfwGetVideoMode(monitor);
+				glfwSetWindowMonitor(window, monitor, 0, 0, videoMode->width, videoMode->height, videoMode->refreshRate);
+				fullscreen = true;
+			}
+		}
 	}
 }
 
@@ -382,7 +404,7 @@ void setup() {
 	MeshContainer car_mesh = MeshContainer("objects/car.obj", "textures/car.png", car_transform);
 	car_mesh.allocate();
 	// Mesh, mass, engine force, rolling resistance, air drag
-	car = Car(car_mesh, 500.0, 1.5, 15.0, 10.0);
+	car = Car(car_mesh, 500.0, 3, 10.0, 10.0);
 	car.pos = vec3(2, 0, 0);
 	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "textures/racetrack.png", false);
 	floor_mesh.allocate();
@@ -456,11 +478,11 @@ void draw() {
 	mat4 depthBiasVP = DepthBias() * depthVP;
 	// Draw scene as usual
     if (camera_loc == 1) { // Third person chase camera
-        vec3 cameraDir = (car.dir + 3 * car.vel) / 2;
-        camera.moveTo(car.pos + vec3(0, 1.5, 0) + -5 * cameraDir);
+        vec3 cameraDir = (car.dir + 2 * car.vel) / 2;
+        camera.moveTo(car.pos + vec3(0, 1.5, 0) + -4 * cameraDir);
         camera.lookAt(car.pos + 4 * cameraDir);
         camera.up = vec3(0, 1, 0);
-        camera.adjustFov(60 + length(car.vel) * 50);
+        camera.adjustFov(60 + length(car.vel) * 25);
     } else if (camera_loc == 2) { // Top-down camera
         camera.moveTo(car.pos + vec3(0, 30, 0));
         camera.lookAt(car.pos);
@@ -476,7 +498,7 @@ void draw() {
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.draw(Translate(pos), depthBiasVP);
 	car.draw(depthBiasVP);
-    particleSystem.draw(camera.persp * camera.view, floor_mesh.texture, 60);
+    particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
 	// DEBUG SHADOW TEXTURE
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, shadowFramebuffer);
@@ -510,7 +532,9 @@ int main() {
 	while (!glfwWindowShouldClose(window)) {
 		time_p cur = sys_clock::now();
 		double_ms since = cur - lastSim;
-		car.update(since.count());
+		dt = 1 / (1000.0f / since.count() / 60.0f);
+
+		car.update(dt);
 		lastSim = cur;
 		car.collide();
 		draw();
