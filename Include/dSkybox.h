@@ -20,8 +20,8 @@ struct dSkybox {
 	GLuint texture = 0, texUnit = 1;
 	void setup();
 	void cleanup();
-	void loadCubemap(string skyboxPath, GLuint _texUnit);
-	void loadCubemap(vector<string> faceTextures, GLuint _texUnit);
+	void loadCubemap(string skyboxPath);
+	void loadCubemap(vector<string> faceTextures);
 	void draw(vec3 view_dir, mat4 persp);
 };
 

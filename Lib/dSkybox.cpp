@@ -95,7 +95,7 @@ void dSkybox::cleanup() {
 	}
 }
 
-void dSkybox::loadCubemap(string skyboxPath, GLuint _texUnit) {
+void dSkybox::loadCubemap(string skyboxPath) {
 	vector<string> faces{
 		skyboxPath + "posx.png",
 		skyboxPath + "negx.png",
@@ -104,13 +104,11 @@ void dSkybox::loadCubemap(string skyboxPath, GLuint _texUnit) {
 		skyboxPath + "posz.png",
 		skyboxPath + "negz.png"
 	};
-	loadCubemap(faces, _texUnit);
+	loadCubemap(faces);
 }
 
-void dSkybox::loadCubemap(vector<string> faceTextures, GLuint _texUnit) {
-	texUnit = _texUnit;
+void dSkybox::loadCubemap(vector<string> faceTextures) {
 	glGenTextures(1, &texture);
-	glActiveTexture(GL_TEXTURE0 + texUnit);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
 	int w, h, c;
 	stbi_set_flip_vertically_on_load(false);
@@ -131,14 +129,14 @@ void dSkybox::loadCubemap(vector<string> faceTextures, GLuint _texUnit) {
 void dSkybox::draw(vec3 view_dir, mat4 persp) {
 	glDepthMask(GL_FALSE);
 	glUseProgram(skyboxShader);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
 	// Recreating camera view matrix without translation
 	mat4 m = LookAt(vec3(0, 0, 0), view_dir, vec3(0, 1, 0));
 	SetUniform(skyboxShader, "view", m);
 	SetUniform(skyboxShader, "persp", persp);
-	SetUniform(skyboxShader, "skybox", (int)texture);
+	SetUniform(skyboxShader, "skybox", 0);
 	glBindVertexArray(skyboxVArray);
-	glActiveTexture(GL_TEXTURE0 + texUnit);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 	glDepthMask(GL_TRUE);
 }

@@ -33,7 +33,7 @@ struct dParticles {
     void cleanup();
     int findDead();
     void createParticle(vec3 pos, vec3 color);
-    void draw(mat4 vp, GLuint texUnit = 0, GLuint texture = 0, float xzrange = 0);
+    void draw(mat4 vp, GLuint texture = 0, float xzrange = 0);
 };
 
 #endif

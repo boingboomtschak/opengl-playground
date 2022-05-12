@@ -147,4 +147,14 @@ inline mat4 Orientation(vec3 forward, vec3 up) {
 	return mat4(vec4(x.x, y.x, z.x, 0), vec4(x.y, y.y, z.y, 0), vec4(x.z, y.z, z.z, 0), vec4(0, 0, 0, 1));
 }
 
+// Create bias matrix to convert points from [-1, 1] to [0, 1] for shadow map sampling
+inline mat4 DepthBias() {
+	return mat4(
+		vec4(0.5, 0.0, 0.0, 0.0), 
+		vec4(0.0, 0.5, 0.0, 0.0), 
+		vec4(0.0, 0.0, 0.5, 0.0), 
+		vec4(0.5, 0.5, 0.5, 1.0)
+	);
+}
+
 #endif // GEOM_UTIL_HDR

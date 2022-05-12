@@ -25,53 +25,65 @@ using std::runtime_error;
 
 GLFWwindow* window;
 int win_width = 1000, win_height = 800;
-GLuint textureUnits = 1;
+
+GLuint shadowProgram = 0;
+GLuint shadowFramebuffer = 0;
+GLuint shadowTexture = 0;
 
 typedef std::chrono::system_clock::time_point time_p;
 typedef std::chrono::system_clock sys_clock;
 typedef std::chrono::duration<double, std::milli> double_ms;
+
+const char* shadowVert = R"(
+	#version 410 core
+	in vec3 point;
+	uniform mat4 depth_vp;
+	uniform mat4 model;
+	void main() {
+		gl_Position = depth_vp * model * vec4(point, 1);
+	}
+)";
+
+const char* shadowFrag = R"(
+	#version 410 core
+	out float fragDepth;
+	void main() {
+		fragDepth = gl_FragCoord.z;
+	}
+)";
 
 const char* meshCtrVert = R"(
 	#version 410 core
 	in vec3 point;
 	in vec3 normal;
 	in vec2 uv;
-	out vec3 vPoint;
-	out vec3 vNormal;
 	out vec2 vUv;
+	out vec4 shadowCoord;
 	uniform mat4 model;
 	uniform mat4 view;
 	uniform mat4 persp;
+	uniform mat4 depth_mvp;
 	void main() {
-		vPoint = (view * model * vec4(point, 1)).xyz;
-		vNormal = (view * model * vec4(normal, 0)).xyz;
+		shadowCoord = depth_mvp * vec4(point, 1);
 		vUv = uv;
-		gl_Position = persp * vec4(vPoint, 1);
+		gl_Position = persp * view * model * vec4(point, 1);
 	}
 )";
 
 const char* meshCtrFrag = R"(
 	#version 410 core
-	in vec3 vPoint;
-	in vec3 vNormal;
 	in vec2 vUv;
+	in vec4 shadowCoord;
 	out vec4 pColor;
-	uniform vec3 light = vec3(0, 10, 0);
-	uniform vec4 color = vec4(1, 1, 1, 1);
-	uniform float amb = 0.6;
-	uniform float dif = 0.6;
-	uniform float spc = 0.7;
 	uniform sampler2D txtr;
+	uniform sampler2D shadow;
+	uniform vec4 ambient = vec4(vec3(0.1), 1);
 	void main() {
-		vec3 N = normalize(vNormal);
-		vec3 L = normalize(light - vPoint);
-		vec3 E = normalize(vPoint);
-		vec3 R = reflect(L, N);
-		float d = dif*max(0, dot(N, L)); 
-		float h = max(0, dot(R, E)); 
-		float s = spc*pow(h, 100); 
-        float intensity = clamp(amb+d+s, 0, 1);
-		pColor = vec4(intensity * color.rgb, 1) * texture(txtr, vUv);
+		float visibility = 1.0;
+		if (texture(shadow, shadowCoord.xy).z < shadowCoord.z) {
+			visibility = 0.5;
+		}
+		pColor = ambient + visibility * texture(txtr, vUv);
 	}
 )";
 
@@ -131,7 +143,7 @@ int camera_loc = 1;
 // Simple mesh wrapper struct
 struct MeshContainer {
 	mat4 model = mat4();
-	GLuint program = 0, texUnit = 0, texture = 0;
+	GLuint program = 0, texture = 0;
 	GLuint vArray = 0, vBuffer = 0, iBuffer = 0;
 	vector<vec3> points;
 	vector<vec3> normals;
@@ -143,8 +155,7 @@ struct MeshContainer {
 		normals = _normals;
 		uvs = _uvs;
 		triangles = _triangles;
-		texUnit = textureUnits++;
-		texture = LoadTexture(texFilename.c_str(), texUnit, texMipmap);
+		texture = LoadTexture(texFilename.c_str(), 0, texMipmap);
 		if (texture < 0)
 			throw runtime_error("Failed to read texture '" + texFilename + "'!");
 		compile();
@@ -153,8 +164,7 @@ struct MeshContainer {
 		if (!ReadAsciiObj(objFilename.c_str(), points, triangles, &normals, &uvs))
 			throw runtime_error("Failed to read mesh obj '" + objFilename + "'!");
 		Normalize(points, 1.0f);
-		texUnit = textureUnits++;
-		texture = LoadTexture(texFilename.c_str(), texUnit);
+		texture = LoadTexture(texFilename.c_str(), 0);
 		if (texture < 0)
 			throw runtime_error("Failed to read texture '" + texFilename + "'!");
 		model = mdl;
@@ -182,26 +192,38 @@ struct MeshContainer {
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, tSize, triangles.data(), GL_STATIC_DRAW);
 		VertexAttribPointer(program, "point", 3, 0, 0);
-		VertexAttribPointer(program, "normal", 3, 0, (GLvoid*)(pSize));
+		//VertexAttribPointer(program, "normal", 3, 0, (GLvoid*)(pSize));
 		VertexAttribPointer(program, "uv", 2, 0, (GLvoid*)(pSize + nSize));
 		glBindVertexArray(0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
-	void draw(mat4 transform) {
+	void draw(mat4 transform, mat4 depth_mvp = NULL) {
 		glUseProgram(program);
 		glBindVertexArray(vArray);
-		glActiveTexture(GL_TEXTURE0 + texUnit);
+		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, texture);
 		mat4 m = transform * model;
 		SetUniform(program, "model", m);
 		SetUniform(program, "view", camera.view);
 		SetUniform(program, "persp", camera.persp);
-		SetUniform(program, "txtr", (int)texture);
+		SetUniform(program, "txtr", 0);
+		if (depth_mvp != NULL) {
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, shadowTexture);
+			SetUniform(program, "depth_mvp", depth_mvp);
+			SetUniform(program, "shadow", 1);
+		}
 		glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+	void drawDepth(mat4 transform) {
+		glBindVertexArray(vArray);
+		SetUniform(shadowProgram, "model", transform * model);
+		glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
+		glBindVertexArray(0);
 	}
 	void deallocate() {
 		glDeleteVertexArrays(1, &vArray);
@@ -244,9 +266,13 @@ struct Car {
 		dir = vec3(1, 0, 0);
 		vel = vec3(0, 0, 0);
 	}
-	void draw() { 
+	void draw(mat4 depth_mvp = NULL) { 
 		mat4 transform = Translate(pos) * Orientation(dir, vec3(0, 1, 0));
-		mesh.draw(transform); 
+		mesh.draw(transform, depth_mvp == NULL ? NULL : depth_mvp); 
+	}
+	void drawDepth() {
+		mat4 transform = Translate(pos) * Orientation(dir, vec3(0, 1, 0));
+		mesh.drawDepth(transform);
 	}
 	void collide() {
 		if (pos.y < 0) pos.y = 0;
@@ -309,10 +335,13 @@ struct Car {
 	}
 } car;
 
-void WindowResized(GLFWwindow* window, int width, int height) {
+void WindowResized(GLFWwindow* window, int _width, int _height) {
+	int width, height;
+	glfwGetFramebufferSize(window, &width, &height);
 	win_width = width;
 	win_height = height;
 	camera.resize(width, height);
+	
 	glViewport(0, 0, win_width, win_height);
 }
 
@@ -364,11 +393,28 @@ void setup() {
 	for (string path : skyboxPaths) {
 		dSkybox skybox;
 		skybox.setup();
-		skybox.loadCubemap(path, textureUnits++);
+		skybox.loadCubemap(path);
 		skyboxes.push_back(skybox);
 	}
     // Setup particle system
     particleSystem.setup();
+	// Set up shadowmap resources
+	if (!(shadowProgram = LinkProgramViaCode(&shadowVert, &shadowFrag)))
+		throw runtime_error("Failed to compile shadow depth program!");
+	glGenFramebuffers(1, &shadowFramebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
+	glGenTextures(1, &shadowTexture);
+	glBindTexture(GL_TEXTURE_2D, shadowTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, 1024, 1024, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowTexture, 0);
+	glDrawBuffer(GL_NONE);
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		throw runtime_error("Failed to set up shadow framebuffer!");
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Set some GL drawing context settings
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
@@ -385,11 +431,30 @@ void cleanup() {
 	for (dSkybox skybox : skyboxes)
 		skybox.cleanup();
     particleSystem.cleanup();
+	glDeleteFramebuffers(1, &shadowFramebuffer);
+	glDeleteTextures(1, &shadowTexture);
 }
 
 void draw() {
+	// Draw scene to depth buffer
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
+	glViewport(0, 0, 1024, 1024);
+	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	glUseProgram(shadowProgram);
+	mat4 depthProj = Orthographic(-30, 30, -30, 30, 0, 100);
+	mat4 depthView = LookAt(vec3(20, 40, 20), vec3(0, 0, 0), vec3(0, 1, 0));
+	mat4 depthVP = depthProj * depthView;
+	SetUniform(shadowProgram, "depth_vp", depthVP);
+	floor_mesh.drawDepth(Scale(60));
+	for (vec3 pos : large_tree_positions)
+		large_tree_mesh.drawDepth(Translate(pos));
+	car.drawDepth();
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, win_width, win_height);
 	glClearColor(0.651f, 0.961f, 0.941f, 1.0f);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	mat4 depthBiasVP = DepthBias() * depthVP;
+	// Draw scene as usual
     if (camera_loc == 1) { // Third person chase camera
         vec3 cameraDir = (car.dir + 3 * car.vel) / 2;
         camera.moveTo(car.pos + vec3(0, 1.5, 0) + -5 * cameraDir);
@@ -407,12 +472,19 @@ void draw() {
         camera.up = vec3(0, 1, 0);
         camera.adjustFov(60);
     }
-	floor_mesh.draw(Scale(60));
+	floor_mesh.draw(Scale(60), depthBiasVP);
 	for (vec3 pos : large_tree_positions)
-		large_tree_mesh.draw(Translate(pos));
-	car.draw();
-    particleSystem.draw(camera.persp * camera.view, floor_mesh.texUnit, floor_mesh.texture, 60);
+		large_tree_mesh.draw(Translate(pos), depthBiasVP);
+	car.draw(depthBiasVP);
+    particleSystem.draw(camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
+	// DEBUG SHADOW TEXTURE
+	PrintGLErrors("DEBUG SHADOW BEFORE");
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, shadowFramebuffer);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glBlitFramebuffer(0, 0, 1024, 1024, 0, 0, win_width / 2, win_height / 2, GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	PrintGLErrors("DEBUG SHADOW AFTER");
 	glFlush();
 }
 
@@ -433,6 +505,7 @@ int main() {
 	glfwMakeContextCurrent(window);
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 	glfwSetWindowPos(window, 100, 100);
+	glfwGetFramebufferSize(window, &win_width, &win_height);
 	glfwSwapInterval(1);
 	setup();
 	time_p lastSim = sys_clock::now();

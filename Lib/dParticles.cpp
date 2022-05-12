@@ -47,7 +47,7 @@ const char* particleFrag = R"(
         if (useTexture == 0) {
             fragColor = color;
         } else { 
-            fragColor = texture(colorTexture, uv) + color;
+            fragColor = 1.2 * texture(colorTexture, uv) + color;
         }
     }
 )";
@@ -116,7 +116,7 @@ void dParticles::createParticle(vec3 pos, vec3 color) {
     );
 }
 
-void dParticles::draw(mat4 vp, GLuint texUnit, GLuint texture, float xzrange) {
+void dParticles::draw(mat4 vp, GLuint texture, float xzrange) {
     glUseProgram(particleShader);
     glBindVertexArray(particleVArray);
     for (int i = 0; i < max_particles; i++) {
@@ -128,15 +128,15 @@ void dParticles::draw(mat4 vp, GLuint texUnit, GLuint texture, float xzrange) {
             if (particles[i].pos.y < 0.0f) particles[i].pos.y = 0.0f;
             // Draw particle
             SetUniform(particleShader, "mvp", vp * Translate(particles[i].pos) * Scale(particle_size));
-            if (texUnit > 0) {
-                glActiveTexture(GL_TEXTURE0 + texUnit);
+            if (texture > 0) {
+                glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, texture);
                 vec2 uv = vec2(particles[i].pos.x / (xzrange * 2.0f) + 0.5, particles[i].pos.z / (xzrange * 2.0f) + 0.5);
-                float value = rand_float(-0.2, 0.2);
+                float value = rand_float(-0.1, 0.1);
                 vec4 color = vec4(value, value, value, 1.0f);
                 SetUniform(particleShader, "useTexture", 1);
                 SetUniform(particleShader, "uv", uv);
-                SetUniform(particleShader, "colorTexture", (int)texUnit);
+                SetUniform(particleShader, "colorTexture", 0);
                 SetUniform(particleShader, "color", color);
             } else {
                 SetUniform(particleShader, "useTexture", 0);
