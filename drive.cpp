@@ -11,6 +11,7 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <format>
 #include "VecMat.h"
 #include "GLXtras.h"
 #include "GeomUtils.h"
@@ -398,11 +399,30 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	}
 }
 
+void load_icon() {
+	GLFWimage icon[2];
+	icon[0].pixels = stbi_load("textures/icon/drive.png", &icon[0].width, &icon[0].height, 0, 4);
+	icon[1].pixels = stbi_load("textures/icon/drive_small.png", &icon[1].width, &icon[1].height, 0, 4);
+	glfwSetWindowIcon(window, 2, icon);
+	stbi_image_free(icon[0].pixels);
+	stbi_image_free(icon[1].pixels);
+}
+
+void update_title(time_p cur) {
+	static time_p lastTitleUpdate = sys_clock::now();
+	double_ms sinceTitleUpdate = cur - lastTitleUpdate;
+	if (sinceTitleUpdate.count() > 200.0f) {
+		char title[30];
+		snprintf(title, 30, "Drive: %.0f fps", (1.0f / dt) * 60.0f);
+		glfwSetWindowTitle(window, title);
+		lastTitleUpdate = cur;
+	}
+}
+
 void setup() {
 	// Initialize GLFW callbacks
 	glfwSetKeyCallback(window, Keyboard);
 	glfwSetWindowSizeCallback(window, WindowResized);
-	glfwSwapInterval(1);
 	// Setup meshes
 	mat4 car_transform = Scale(0.75f) * Translate(0, 0.5, 0) * RotateY(-90);
 	MeshContainer car_mesh = MeshContainer("objects/car.obj", "textures/car.png", car_transform);
@@ -531,14 +551,16 @@ int main() {
 	glfwSetWindowPos(window, 100, 100);
 	glfwGetFramebufferSize(window, &win_width, &win_height);
 	glfwSwapInterval(1);
+	load_icon();
 	setup();
 	time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
 		time_p cur = sys_clock::now();
 		double_ms since = cur - lastSim;
 		dt = 1 / (1000.0f / since.count() / 60.0f);
-		car.update(dt);
 		lastSim = cur;
+		update_title(cur);
+		car.update(dt);
 		car.collide();
 		draw();
 		glfwPollEvents();
