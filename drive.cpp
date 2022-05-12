@@ -479,12 +479,10 @@ void draw() {
     particleSystem.draw(camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
 	// DEBUG SHADOW TEXTURE
-	PrintGLErrors("DEBUG SHADOW BEFORE");
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, shadowFramebuffer);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glBlitFramebuffer(0, 0, 1024, 1024, 0, 0, win_width / 2, win_height / 2, GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	PrintGLErrors("DEBUG SHADOW AFTER");
 	glFlush();
 }
 
