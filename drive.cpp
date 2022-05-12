@@ -383,12 +383,16 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
 			win_height = windowed_height;
 			glfwSetWindowMonitor(window, NULL, 100, 100, win_width, win_height, 0);
 			fullscreen = false;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		} else {
 			GLFWmonitor* monitor = glfwGetPrimaryMonitor();
 			if (monitor != NULL) {
-				const GLFWvidmode* videoMode = glfwGetVideoMode(monitor);
-				glfwSetWindowMonitor(window, monitor, 0, 0, videoMode->width, videoMode->height, videoMode->refreshRate);
+                int videoModesCount;
+                const GLFWvidmode* videoModes = glfwGetVideoModes(monitor, &videoModesCount);
+                const GLFWvidmode highest = videoModes[videoModesCount - 1];
+				glfwSetWindowMonitor(window, monitor, 0, 0, highest.width, highest.height, highest.refreshRate);
 				fullscreen = true;
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 			}
 		}
 	}
@@ -533,7 +537,6 @@ int main() {
 		time_p cur = sys_clock::now();
 		double_ms since = cur - lastSim;
 		dt = 1 / (1000.0f / since.count() / 60.0f);
-
 		car.update(dt);
 		lastSim = cur;
 		car.collide();
