@@ -11,7 +11,6 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
-#include <format>
 #include "VecMat.h"
 #include "GLXtras.h"
 #include "GeomUtils.h"
@@ -31,13 +30,42 @@ int win_width = windowed_width, win_height = windowed_height;
 bool fullscreen = false;
 float dt;
 
+const int SHADOW_WIDTH = 8192;
+const int SHADOW_HEIGHT = 8192;
 GLuint shadowProgram = 0;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
 
+// TEX QUAD DEBUG
+GLuint quadProgram = 0, quadVArray = 0, quadVBuffer = 0;
+vector<vec2> quadPoints {
+    {-1, -1}, {1, -1}, {1, 1},
+    {1, 1}, {-1, 1}, {-1, -1}
+};
+const char* quadVert = R"(
+    #version 410 core
+    in vec2 point;
+    out vec2 uv;
+    void main() {
+        uv = vec2(point.x / 2 + 0.5, point.y / 2 + 0.5);
+        gl_Position = vec4(point, 0, 1);
+    }
+)";
+const char* quadFrag = R"(
+    #version 410 core
+    in vec2 uv;
+    out vec4 color;
+    uniform sampler2D tex;
+    void main() {
+        color = vec4(vec3(texture(tex, uv).r), 1.0);
+        //color = texture(tex, uv);
+    }
+)";
+
 typedef std::chrono::system_clock::time_point time_p;
 typedef std::chrono::system_clock sys_clock;
 typedef std::chrono::duration<double, std::milli> double_ms;
+
 
 const char* shadowVert = R"(
 	#version 410 core
@@ -51,16 +79,12 @@ const char* shadowVert = R"(
 
 const char* shadowFrag = R"(
 	#version 410 core
-	out float fragDepth;
-	void main() {
-		fragDepth = gl_FragCoord.z;
-	}
+	void main() {}
 )";
 
 const char* meshCtrVert = R"(
 	#version 410 core
 	in vec3 point;
-	in vec3 normal;
 	in vec2 uv;
 	out vec2 vUv;
 	out vec4 shadowCoord;
@@ -83,12 +107,31 @@ const char* meshCtrFrag = R"(
 	uniform sampler2D txtr;
 	uniform sampler2D shadow;
 	uniform vec4 ambient = vec4(vec3(0.1), 1);
+    float calcShadow(vec4 coord) {
+        vec3 shadowProj = coord.xyz / coord.w;
+        shadowProj = shadowProj * 0.5 + 0.5;
+        float currentDepth = shadowProj.z;
+        float bias = 0.003f;
+        float shadowVal = 0.0f;
+        vec2 texelSize = 1.0 / textureSize(shadow, 0);
+        for (int x = -2; x <= 2; x++) {
+            for (int y = -2; y <= 2; y++) {
+                float pcfDepth = texture(shadow, shadowProj.xy + vec2(x, y) * texelSize).r;
+                shadowVal += currentDepth - bias > pcfDepth ? 0.3 : 1.0;
+            }
+        }
+        shadowVal /= 25.0;
+        return shadowVal;
+    }
 	void main() {
+        /*
 		float visibility = 1.0;
-		if (texture(shadow, shadowCoord.xy).z < shadowCoord.z) {
+		if (texture(shadow, shadowCoord.xy).r < shadowCoord.z) {
 			visibility = 0.5;
-		}
-		pColor = ambient + visibility * texture(txtr, vUv);
+		} */
+        pColor = ambient + texture(txtr, vUv) * calcShadow(shadowCoord);
+		//pColor = ambient + visibility * texture(txtr, vUv);
+        //pColor = ambient + texture(shadow, shadowCoord.xy).z * texture(txtr, vUv);
 	}
 )";
 
@@ -150,6 +193,7 @@ struct MeshContainer {
 	mat4 model = mat4();
 	GLuint program = 0, texture = 0;
 	GLuint vArray = 0, vBuffer = 0, iBuffer = 0;
+    GLuint depthVArray = 0, depthVBuffer = 0, depthIBuffer = 0;
 	vector<vec3> points;
 	vector<vec3> normals;
 	vector<vec2> uvs;
@@ -202,9 +246,20 @@ struct MeshContainer {
 		glBindVertexArray(0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-		glBindTexture(GL_TEXTURE_2D, 0);
+        glGenVertexArrays(1, &depthVArray);
+        glBindVertexArray(depthVArray);
+        glGenBuffers(1, &depthVBuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, depthVBuffer);
+        glBufferData(GL_ARRAY_BUFFER, pSize, points.data(), GL_STATIC_DRAW);
+        glGenBuffers(1, &depthIBuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, depthIBuffer);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, tSize, triangles.data(), GL_STATIC_DRAW);
+        VertexAttribPointer(shadowProgram, "point", 3, 0, 0);
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	}
-	void draw(mat4 transform, mat4 depth_mvp = NULL) {
+	void draw(mat4 transform, mat4 depth_vp = NULL) {
 		glUseProgram(program);
 		glBindVertexArray(vArray);
 		glActiveTexture(GL_TEXTURE0);
@@ -214,7 +269,8 @@ struct MeshContainer {
 		SetUniform(program, "view", camera.view);
 		SetUniform(program, "persp", camera.persp);
 		SetUniform(program, "txtr", 0);
-		if (depth_mvp != NULL) {
+		if (depth_vp != NULL) {
+            mat4 depth_mvp = depth_vp * m;
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, shadowTexture);
 			SetUniform(program, "depth_mvp", depth_mvp);
@@ -222,11 +278,16 @@ struct MeshContainer {
 		}
 		glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
-		glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        if (depth_vp != NULL) {
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
 	}
 	void drawDepth(mat4 transform) {
-		glBindVertexArray(vArray);
-		SetUniform(shadowProgram, "model", transform * model);
+		glBindVertexArray(depthVArray);
+        SetUniform(shadowProgram, "model", transform * model);
 		glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 	}
@@ -235,6 +296,10 @@ struct MeshContainer {
 		glDeleteBuffers(1, &vBuffer);
 		glDeleteBuffers(1, &iBuffer);
 		glDeleteTextures(1, &texture);
+        // deallocate depth VAO/buffers
+        glDeleteVertexArrays(1, &depthVArray);
+        glDeleteBuffers(1, &depthVBuffer);
+        glDeleteBuffers(1, &depthIBuffer);
 	}
 };
 
@@ -423,6 +488,26 @@ void setup() {
 	// Initialize GLFW callbacks
 	glfwSetKeyCallback(window, Keyboard);
 	glfwSetWindowSizeCallback(window, WindowResized);
+    // Set up shadowmap resources
+    if (!(shadowProgram = LinkProgramViaCode(&shadowVert, &shadowFrag)))
+        throw runtime_error("Failed to compile shadow depth program!");
+    glGenFramebuffers(1, &shadowFramebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
+    glGenTextures(1, &shadowTexture);
+    glBindTexture(GL_TEXTURE_2D, shadowTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowTexture, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        throw runtime_error("Failed to set up shadow framebuffer!");
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Setup meshes
 	mat4 car_transform = Scale(0.75f) * Translate(0, 0.5, 0) * RotateY(-90);
 	MeshContainer car_mesh = MeshContainer("objects/car.obj", "textures/car.png", car_transform);
@@ -444,29 +529,24 @@ void setup() {
 	}
     // Setup particle system
     particleSystem.setup();
-	// Set up shadowmap resources
-	if (!(shadowProgram = LinkProgramViaCode(&shadowVert, &shadowFrag)))
-		throw runtime_error("Failed to compile shadow depth program!");
-	glGenFramebuffers(1, &shadowFramebuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
-	glGenTextures(1, &shadowTexture);
-	glBindTexture(GL_TEXTURE_2D, shadowTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, 1024, 1024, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowTexture, 0);
-	glDrawBuffer(GL_NONE);
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		throw runtime_error("Failed to set up shadow framebuffer!");
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Set some GL drawing context settings
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_CULL_FACE);
+    glClearColor(0.651f, 0.961f, 0.941f, 1.0f);
+    // TEX QUAD DEBUG
+    if (!(quadProgram = LinkProgramViaCode(&quadVert, &quadFrag)))
+        throw runtime_error("Failed to compile debug quad program!");
+    glGenVertexArrays(1, &quadVArray);
+    glBindVertexArray(quadVArray);
+    glGenBuffers(1, &quadVBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBuffer);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(quadPoints.size() * sizeof(vec2)), quadPoints.data(), GL_STATIC_DRAW);
+    VertexAttribPointer(quadProgram, "point", 2, 0, 0);
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void cleanup() {
@@ -479,15 +559,18 @@ void cleanup() {
     particleSystem.cleanup();
 	glDeleteFramebuffers(1, &shadowFramebuffer);
 	glDeleteTextures(1, &shadowTexture);
+    // TEX QUAD DEBUG
+    glDeleteVertexArrays(1, &quadVArray);
+    glDeleteBuffers(1, &quadVBuffer);
 }
 
 void draw() {
 	// Draw scene to depth buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
-	glViewport(0, 0, 1024, 1024);
-	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+	glClear(GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shadowProgram);
-	mat4 depthProj = Orthographic(-30, 30, -30, 30, 0, 100);
+	mat4 depthProj = Orthographic(-80, 80, -80, 80, 0, 100);
 	mat4 depthView = LookAt(vec3(20, 40, 20), vec3(0, 0, 0), vec3(0, 1, 0));
 	mat4 depthVP = depthProj * depthView;
 	SetUniform(shadowProgram, "depth_vp", depthVP);
@@ -497,9 +580,7 @@ void draw() {
 	car.drawDepth();
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, win_width, win_height);
-	glClearColor(0.651f, 0.961f, 0.941f, 1.0f);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-	mat4 depthBiasVP = DepthBias() * depthVP;
 	// Draw scene as usual
     if (camera_loc == 1) { // Third person chase camera
         vec3 cameraDir = (car.dir + 2 * car.vel) / 2;
@@ -518,17 +599,24 @@ void draw() {
         camera.up = vec3(0, 1, 0);
         camera.adjustFov(60);
     }
-	floor_mesh.draw(Scale(60), depthBiasVP);
+	floor_mesh.draw(Scale(60), depthVP);
 	for (vec3 pos : large_tree_positions)
-		large_tree_mesh.draw(Translate(pos), depthBiasVP);
-	car.draw(depthBiasVP);
+		large_tree_mesh.draw(Translate(pos), depthVP);
+	car.draw(depthVP);
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
+    /*
 	// DEBUG SHADOW TEXTURE
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, shadowFramebuffer);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	glBlitFramebuffer(0, 0, 1024, 1024, 0, 0, win_width / 2, win_height / 2, GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, 1024, 1024);
+    glUseProgram(quadProgram);
+    glBindVertexArray(quadVArray);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, shadowTexture);
+    SetUniform(quadProgram, "tex", 0);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+    */
 	glFlush();
 }
 
