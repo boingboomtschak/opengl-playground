@@ -30,7 +30,7 @@ int win_width = windowed_width, win_height = windowed_height;
 bool fullscreen = false;
 float dt;
 
-const int SHADOW_DIM = 4096;
+const int SHADOW_DIM = 16384;
 GLuint shadowProgram = 0;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
@@ -57,7 +57,6 @@ const char* quadFrag = R"(
     uniform sampler2D tex;
     void main() {
         color = vec4(vec3(texture(tex, uv).r), 1.0);
-        //color = texture(tex, uv);
     }
 )";
 
@@ -106,12 +105,23 @@ const char* meshCtrFrag = R"(
 	uniform sampler2D txtr;
 	uniform sampler2DShadow shadow;
 	uniform vec4 ambient = vec4(vec3(0.1), 1);
+	vec2 uniformSamples[32] = vec2[](vec2(-0.11741578, 0.20914085), vec2(0.26000559, -0.28486761), vec2(0.93131539, -0.48578584), vec2(0.80745101, 0.37167486), vec2(-0.33642120, -0.36453594), vec2(-0.23820384, -0.18305261), vec2(-0.87408538, -0.31863559), vec2(0.47019323, -0.35136015), vec2(-0.69546093, -0.79976859), vec2(0.14978592, -0.22377524), vec2(-0.57539683, 0.26331564), vec2(-0.37060871, -0.45367951), vec2(0.14650811, -0.30350294), vec2(-0.99536734, 0.79540637), vec2(0.35340423, 0.76278149), vec2(-0.25383284, -0.14352601), vec2(0.81258030, 0.62057289), vec2(-0.98590621, -0.88627056), vec2(-0.75747913, 0.57323383), vec2(0.21500285, 0.32685711), vec2(-0.12003348, 0.22550558), vec2(0.35599670, -0.63351003), vec2(0.81070126, -0.70860843), vec2(-0.06028489, 0.73799784), vec2(0.82970675, 0.55213729), vec2(0.23367646, -0.85877382), vec2(0.59303807, 0.89708279), vec2(0.60601758, 0.03853706), vec2(-0.68139085, 0.21621753), vec2(0.88392851, 0.04113445), vec2(0.15061806, 0.60249902), vec2(0.13039030, -0.93887446));
+	float random(vec4 seed) {
+		float dot_product = dot(seed, vec4(12.9898,78.233,45.164,94.673));
+		return fract(sin(dot_product) * 43758.5453);
+	}
     float calcShadow(vec4 coord) {
         vec3 shadowProj = coord.xyz / coord.w;
         shadowProj = shadowProj * 0.5 + 0.5;
         float currentDepth = shadowProj.z;
-        float bias = 0.003f;
-        float shadowVal = texture(shadow, vec3(shadowProj.xy, shadowProj.z - bias)) <= 0.3 ? 0.3 : 1.0;
+        float bias = 0.0005f;
+		vec2 texelSize = 1.0 / textureSize(shadow, 0);
+        float shadowVal = 0.0f;
+		for (int i = 0; i < 32; i++) {
+			int ind = int(32.0*random(vec4(gl_FragCoord.xyy, i))) % 32;
+			shadowVal += texture(shadow, vec3(shadowProj.xy + uniformSamples[ind] * texelSize * 2, shadowProj.z - bias)) == 0.0f ? 0.4f : 1.0f;
+		}
+		shadowVal /= 32.0f;
         return shadowVal;
     }
 	void main() {
@@ -132,8 +142,8 @@ dParticles particleSystem;
 
 struct Camera {
 	float fov = 60;
-	float zNear = 0.1f;
-	float zFar = 1000.0f;
+	float zNear = 0.5f;
+	float zFar = 120.0f;
 	int width, height;
     vec3 loc, look;
     vec3 up = vec3(0, 1, 0);
@@ -480,8 +490,8 @@ void setup() {
     glGenTextures(1, &shadowTexture);
     glBindTexture(GL_TEXTURE_2D, shadowTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, SHADOW_DIM, SHADOW_DIM, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
@@ -500,7 +510,7 @@ void setup() {
 	// Mesh, mass, engine force, rolling resistance, air drag
 	car = Car(car_mesh, 500.0, 3, 10.0, 10.0);
 	car.pos = vec3(2, 0, 0);
-	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "textures/racetrack.png", false);
+	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "textures/racetrack.png");
 	floor_mesh.allocate();
 	mat4 large_tree_transform = Scale(2.0) * Translate(0, 0.9, 0);
 	large_tree_mesh = MeshContainer("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
