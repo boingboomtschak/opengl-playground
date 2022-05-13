@@ -30,8 +30,7 @@ int win_width = windowed_width, win_height = windowed_height;
 bool fullscreen = false;
 float dt;
 
-const int SHADOW_WIDTH = 8192;
-const int SHADOW_HEIGHT = 8192;
+const int SHADOW_DIM = 4096;
 GLuint shadowProgram = 0;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
@@ -105,33 +104,18 @@ const char* meshCtrFrag = R"(
 	in vec4 shadowCoord;
 	out vec4 pColor;
 	uniform sampler2D txtr;
-	uniform sampler2D shadow;
+	uniform sampler2DShadow shadow;
 	uniform vec4 ambient = vec4(vec3(0.1), 1);
     float calcShadow(vec4 coord) {
         vec3 shadowProj = coord.xyz / coord.w;
         shadowProj = shadowProj * 0.5 + 0.5;
         float currentDepth = shadowProj.z;
         float bias = 0.003f;
-        float shadowVal = 0.0f;
-        vec2 texelSize = 1.0 / textureSize(shadow, 0);
-        for (int x = -2; x <= 2; x++) {
-            for (int y = -2; y <= 2; y++) {
-                float pcfDepth = texture(shadow, shadowProj.xy + vec2(x, y) * texelSize).r;
-                shadowVal += currentDepth - bias > pcfDepth ? 0.3 : 1.0;
-            }
-        }
-        shadowVal /= 25.0;
+        float shadowVal = texture(shadow, vec3(shadowProj.xy, shadowProj.z - bias)) <= 0.3 ? 0.3 : 1.0;
         return shadowVal;
     }
 	void main() {
-        /*
-		float visibility = 1.0;
-		if (texture(shadow, shadowCoord.xy).r < shadowCoord.z) {
-			visibility = 0.5;
-		} */
         pColor = ambient + texture(txtr, vUv) * calcShadow(shadowCoord);
-		//pColor = ambient + visibility * texture(txtr, vUv);
-        //pColor = ambient + texture(shadow, shadowCoord.xy).z * texture(txtr, vUv);
 	}
 )";
 
@@ -495,11 +479,12 @@ void setup() {
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
     glGenTextures(1, &shadowTexture);
     glBindTexture(GL_TEXTURE_2D, shadowTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16, SHADOW_DIM, SHADOW_DIM, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
     float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowTexture, 0);
@@ -509,7 +494,7 @@ void setup() {
         throw runtime_error("Failed to set up shadow framebuffer!");
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Setup meshes
-	mat4 car_transform = Scale(0.75f) * Translate(0, 0.5, 0) * RotateY(-90);
+	mat4 car_transform = Scale(0.75f) * Translate(0, 0.38, 0) * RotateY(-90);
 	MeshContainer car_mesh = MeshContainer("objects/car.obj", "textures/car.png", car_transform);
 	car_mesh.allocate();
 	// Mesh, mass, engine force, rolling resistance, air drag
@@ -567,11 +552,11 @@ void cleanup() {
 void draw() {
 	// Draw scene to depth buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
-	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+	glViewport(0, 0, SHADOW_DIM, SHADOW_DIM);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shadowProgram);
-	mat4 depthProj = Orthographic(-80, 80, -80, 80, 0, 100);
-	mat4 depthView = LookAt(vec3(20, 40, 20), vec3(0, 0, 0), vec3(0, 1, 0));
+	mat4 depthProj = Orthographic(-80, 80, -80, 80, -20, 100);
+	mat4 depthView = LookAt(vec3(20, 30, 20), vec3(0, 0, 0), vec3(0, 1, 0));
 	mat4 depthVP = depthProj * depthView;
 	SetUniform(shadowProgram, "depth_vp", depthVP);
 	floor_mesh.drawDepth(Scale(60));
@@ -605,8 +590,8 @@ void draw() {
 	car.draw(depthVP);
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
-    /*
 	// DEBUG SHADOW TEXTURE
+    /*
     glClear(GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, 1024, 1024);
     glUseProgram(quadProgram);
@@ -616,7 +601,7 @@ void draw() {
     SetUniform(quadProgram, "tex", 0);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
-    */
+     */
 	glFlush();
 }
 
