@@ -110,19 +110,29 @@ const char* meshCtrFrag = R"(
 		float dot_product = dot(seed, vec4(12.9898,78.233,45.164,94.673));
 		return fract(sin(dot_product) * 43758.5453);
 	}
-    float calcShadow(vec4 coord) {
-        vec3 shadowProj = coord.xyz / coord.w;
-        shadowProj = shadowProj * 0.5 + 0.5;
-        float currentDepth = shadowProj.z;
-        float bias = 0.0005f;
+    float calcShadow(vec4 shadow_coord) {
+        // Perspective division and transforming shadow coord from [-1, 1] to [0, 1]
+        vec3 coord = shadow_coord.xyz / shadow_coord.w;
+        coord = coord * 0.5 + 0.5;
+        // Calculating total texel size and value at shadow
 		vec2 texelSize = 1.0 / textureSize(shadow, 0);
-        float shadowVal = 0.0f;
+        float bias = 0.0005f;
+        float shadowVal = texture(shadow, vec3(coord.xy, coord.z - bias)) == 0.0f ? 0.4f : 1.0f;
+        // Early bailing on extra sampling if nearby values are the same (not on shadow edge)
+        bool different = false;
+        for (int x = -1; x <= 1; x += 2) {
+            for (int y = -1; y <= 1; y += 2) {
+                float diffVal = texture(shadow, vec3(coord.xy + vec2(x, y) * texelSize, coord.z - bias)) == 0.0f ? 0.4f : 1.0f;
+                if (diffVal != shadowVal) different = true;
+            }
+        }
+        if (!different) return shadowVal == 1.0f ? 1.0f : shadowVal / 5.0;
+        // If on shadow edge, sample using nearby precalculated uniform random coordinates
 		for (int i = 0; i < 16; i++) {
 			int ind = int(16.0*random(vec4(gl_FragCoord.xyy, i))) % 16;
-			shadowVal += texture(shadow, vec3(shadowProj.xy + uniformSamples[ind] * texelSize * 2, shadowProj.z - bias)) == 0.0f ? 0.4f : 1.0f;
+			shadowVal += texture(shadow, vec3(coord.xy + uniformSamples[ind] * texelSize * 2, coord.z - bias)) == 0.0f ? 0.4f : 1.0f;
 		}
-		shadowVal /= 16.0f;
-        return shadowVal;
+        return shadowVal / 21.0f;
     }
 	void main() {
         pColor = ambient + texture(txtr, vUv) * calcShadow(shadowCoord);
