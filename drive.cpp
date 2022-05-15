@@ -15,10 +15,10 @@
 #include "GLXtras.h"
 #include "GeomUtils.h"
 #include "Mesh.h"
-#include "Misc.h"
 #include "dSkybox.h"
 #include "dParticles.h"
 #include "dTextureDebug.h"
+#include "dMisc.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
@@ -199,7 +199,7 @@ struct MeshContainer {
 		normals = _normals;
 		uvs = _uvs;
 		triangles = _triangles;
-		texture = LoadTexture(texFilename.c_str(), 0, texMipmap);
+		texture = loadTexture(texFilename, texMipmap, GL_LINEAR_MIPMAP_NEAREST, GL_NEAREST);
 		if (texture < 0)
 			throw runtime_error("Failed to read texture '" + texFilename + "'!");
 		compile();
@@ -208,7 +208,7 @@ struct MeshContainer {
 		if (!ReadAsciiObj(objFilename.c_str(), points, triangles, &normals, &uvs))
 			throw runtime_error("Failed to read mesh obj '" + objFilename + "'!");
 		Normalize(points, 1.0f);
-		texture = LoadTexture(texFilename.c_str(), 0);
+		texture = loadTexture(texFilename);
 		if (texture < 0)
 			throw runtime_error("Failed to read texture '" + texFilename + "'!");
 		model = mdl;
