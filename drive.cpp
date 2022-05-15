@@ -18,6 +18,7 @@
 #include "Misc.h"
 #include "dSkybox.h"
 #include "dParticles.h"
+#include "dTextureDebug.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
@@ -42,32 +43,6 @@ GLuint shadowTexture = 0;
 float lightColor[3] = { 1.0f, 1.0f, 1.0f };
 int shadowEdgeSamples = 16;
 static bool showPerformance = false;
-
-
-// TEX QUAD DEBUG
-GLuint quadProgram = 0, quadVArray = 0, quadVBuffer = 0;
-vector<vec2> quadPoints {
-    {-1, -1}, {1, -1}, {1, 1},
-    {1, 1}, {-1, 1}, {-1, -1}
-};
-const char* quadVert = R"(
-    #version 410 core
-    in vec2 point;
-    out vec2 uv;
-    void main() {
-        uv = vec2(point.x / 2 + 0.5, point.y / 2 + 0.5);
-        gl_Position = vec4(point, 0, 1);
-    }
-)";
-const char* quadFrag = R"(
-    #version 410 core
-    in vec2 uv;
-    out vec4 color;
-    uniform sampler2D tex;
-    void main() {
-        color = vec4(vec3(texture(tex, uv).r), 1.0);
-    }
-)";
 
 typedef std::chrono::system_clock::time_point time_p;
 typedef std::chrono::system_clock sys_clock;
@@ -168,7 +143,7 @@ dParticles particleSystem;
 
 struct Camera {
 	float fov = 60;
-	float zNear = 0.5f;
+	float zNear = 1.0f;
 	float zFar = 120.0f;
 	int width, height;
     vec3 loc, look;
@@ -618,17 +593,6 @@ void setup() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_CULL_FACE);
-    // TEX QUAD DEBUG
-    if (!(quadProgram = LinkProgramViaCode(&quadVert, &quadFrag)))
-        throw runtime_error("Failed to compile debug quad program!");
-    glGenVertexArrays(1, &quadVArray);
-    glBindVertexArray(quadVArray);
-    glGenBuffers(1, &quadVBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, quadVBuffer);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizei)(quadPoints.size() * sizeof(vec2)), quadPoints.data(), GL_STATIC_DRAW);
-    VertexAttribPointer(quadProgram, "point", 2, 0, 0);
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void cleanup() {
@@ -641,9 +605,6 @@ void cleanup() {
     particleSystem.cleanup();
 	glDeleteFramebuffers(1, &shadowFramebuffer);
 	glDeleteTextures(1, &shadowTexture);
-    // TEX QUAD DEBUG
-    glDeleteVertexArrays(1, &quadVArray);
-    glDeleteBuffers(1, &quadVBuffer);
 }
 
 void draw() {
@@ -690,17 +651,7 @@ void draw() {
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
 	// DEBUG SHADOW TEXTURE
-    /*
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, 1024, 1024);
-    glUseProgram(quadProgram);
-    glBindVertexArray(quadVArray);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, shadowTexture);
-    SetUniform(quadProgram, "tex", 0);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
-     */
+	dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
 	render_imgui();
 	glFlush();
 }
