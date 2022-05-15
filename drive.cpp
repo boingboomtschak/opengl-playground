@@ -18,6 +18,9 @@
 #include "Misc.h"
 #include "dSkybox.h"
 #include "dParticles.h"
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_glfw.h"
+#include "imgui/imgui_impl_opengl3.h"
 
 using std::vector;
 using std::string;
@@ -34,6 +37,10 @@ const int SHADOW_DIM = 16384;
 GLuint shadowProgram = 0;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
+
+float lightColor[3] = { 1.0f, 1.0f, 1.0f };
+int shadowEdgeSamples = 16;
+
 
 // TEX QUAD DEBUG
 GLuint quadProgram = 0, quadVArray = 0, quadVBuffer = 0;
@@ -105,7 +112,9 @@ const char* meshCtrFrag = R"(
 	uniform sampler2D txtr;
 	uniform sampler2DShadow shadow;
 	uniform vec4 ambient = vec4(vec3(0.1), 1);
-    vec2 uniformSamples[16] = vec2[](vec2(0.25482592, -0.47148907), vec2(-0.03807903, 0.47670346), vec2(-0.07067859, -0.11642697), vec2(-0.70715460, 0.88448284), vec2(-0.26749483, -0.95115074), vec2(0.99824619, 0.21368693), vec2(0.58586272, 0.66583333), vec2(0.06347396, -0.78518660), vec2(-0.16479594, -0.56049675), vec2(0.50078212, -0.08821384), vec2(0.68727468, -0.67623132), vec2(-0.15192472, 0.72083413), vec2(0.53912521, -0.51585304), vec2(0.32076027, -0.04868334), vec2(0.48035070, 0.28335224), vec2(0.70476695, -0.05970097));
+	uniform vec3 lightColor;
+	uniform int edgeSamples;
+	vec2 uniformSamples[32] = vec2[](vec2(0.49338352, -0.58302237), vec2(-0.39376479, 0.12189280), vec2(-0.38876976, 0.39560871), vec2(-0.82853213, 0.29121478), vec2(-0.62251564, 0.27426500), vec2(0.44906493, 0.72971920), vec2(0.99295605, 0.02762058), vec2(-0.61054051, -0.74474791), vec2(-0.49073490, 0.09812672), vec2(0.64145907, -0.23052487), vec2(-0.47168601, 0.81892203), vec2(0.95110052, 0.97483373), vec2(0.84048903, 0.82753596), vec2(-0.94147225, 0.42333745), vec2(-0.97706586, 0.22633662), vec2(0.00977269, 0.02378330), vec2(-0.21250551, 0.39536213), vec2(0.46426639, 0.17288661), vec2(-0.44197788, 0.33506576), vec2(0.80805167, -0.29359674), vec2(-0.66379370, 0.04307460), vec2(0.26607188, 0.79704354), vec2(0.20652568, 0.81991369), vec2(0.64959186, -0.64564514), vec2(0.93534138, 0.83045920), vec2(0.31952140, 0.95451090), vec2(-0.85996893, 0.29045370), vec2(-0.33230688, -0.34582716), vec2(0.87055498, 0.64248681), vec2(-0.19631182, -0.83353633), vec2(0.70041707, 0.58055892), vec2(0.78863981, -0.50693407));
 	float random(vec4 seed) {
 		float dot_product = dot(seed, vec4(12.9898,78.233,45.164,94.673));
 		return fract(sin(dot_product) * 43758.5453);
@@ -116,26 +125,25 @@ const char* meshCtrFrag = R"(
         coord = coord * 0.5 + 0.5;
         // Calculating total texel size and value at shadow
 		vec2 texelSize = 1.0 / textureSize(shadow, 0);
-        float bias = 0.0005f;
-        float shadowVal = texture(shadow, vec3(coord.xy, coord.z - bias)) == 0.0f ? 0.4f : 1.0f;
+        float shadowVal = texture(shadow, vec3(coord.xy, coord.z)) == 0.0f ? 0.4f : 1.0f;
         // Early bailing on extra sampling if nearby values are the same (not on shadow edge)
         bool different = false;
         for (int x = -1; x <= 1; x += 2) {
             for (int y = -1; y <= 1; y += 2) {
-                float diffVal = texture(shadow, vec3(coord.xy + vec2(x, y) * texelSize, coord.z - bias)) == 0.0f ? 0.4f : 1.0f;
+                float diffVal = texture(shadow, vec3(coord.xy + vec2(x, y) * texelSize, coord.z)) == 0.0f ? 0.4f : 1.0f;
                 if (diffVal != shadowVal) different = true;
             }
         }
         if (!different) return shadowVal == 1.0f ? 1.0f : shadowVal / 5.0;
         // If on shadow edge, sample using nearby precalculated uniform random coordinates
-		for (int i = 0; i < 16; i++) {
-			int ind = int(16.0*random(vec4(gl_FragCoord.xyy, i))) % 16;
-			shadowVal += texture(shadow, vec3(coord.xy + uniformSamples[ind] * texelSize * 2, coord.z - bias)) == 0.0f ? 0.4f : 1.0f;
+		for (int i = 0; i < edgeSamples; i++) {
+			int ind = int(float(edgeSamples)*random(vec4(gl_FragCoord.xyy, i))) % edgeSamples;
+			shadowVal += texture(shadow, vec3(coord.xy + uniformSamples[ind] * texelSize, coord.z)) == 0.0f ? 0.4f : 1.0f;
 		}
-        return shadowVal / 21.0f;
+        return shadowVal / (float(edgeSamples) + 5.0f);
     }
 	void main() {
-        pColor = ambient + texture(txtr, vUv) * calcShadow(shadowCoord);
+        pColor = ambient + texture(txtr, vUv) * vec4(lightColor, 1) * calcShadow(shadowCoord);
 	}
 )";
 
@@ -279,6 +287,8 @@ struct MeshContainer {
 			glBindTexture(GL_TEXTURE_2D, shadowTexture);
 			SetUniform(program, "depth_mvp", depth_mvp);
 			SetUniform(program, "shadow", 1);
+			SetUniform(program, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
+			SetUniform(program, "edgeSamples", shadowEdgeSamples);
 		}
 		glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
@@ -422,7 +432,7 @@ void WindowResized(GLFWwindow* window, int _width, int _height) {
 }
 
 void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	if (key == GLFW_KEY_ESCAPE || key == GLFW_KEY_Q)
+	if (key == GLFW_KEY_Q && glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, GLFW_TRUE);
 	if (key == GLFW_KEY_R && action == GLFW_PRESS) {
 		car.pos = vec3(2, 0, 0);
@@ -486,6 +496,35 @@ void update_title(time_p cur) {
 		glfwSetWindowTitle(window, title);
 		lastTitleUpdate = cur;
 	}
+}
+
+void render_imgui() {
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	ImGui::BeginMainMenuBar();
+	if (ImGui::BeginMenu("Drive")) {
+		if (ImGui::MenuItem("Quit", "CTRL + Q", false)) glfwSetWindowShouldClose(window, GLFW_TRUE);
+		ImGui::EndMenu();
+	}
+	if (ImGui::BeginMenu("Lighting")) {
+		ImGui::ColorEdit3("Light Color", lightColor);
+		if (ImGui::BeginCombo("Shadow Edge Samples", "", ImGuiComboFlags_NoPreview)) {
+			if (ImGui::Selectable("2 Samples", shadowEdgeSamples == 2)) shadowEdgeSamples = 2;
+			if (ImGui::Selectable("4 Samples", shadowEdgeSamples == 4)) shadowEdgeSamples = 4;
+			if (ImGui::Selectable("8 Samples", shadowEdgeSamples == 8)) shadowEdgeSamples = 8;
+			if (ImGui::Selectable("16 Samples", shadowEdgeSamples == 16)) shadowEdgeSamples = 16;
+			if (ImGui::Selectable("32 Samples", shadowEdgeSamples == 32)) shadowEdgeSamples = 32;
+			ImGui::EndCombo();
+		}
+
+		ImGui::EndMenu();
+	}
+	ImGui::EndMainMenuBar();
+
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 void setup() {
@@ -575,6 +614,7 @@ void draw() {
 	glViewport(0, 0, SHADOW_DIM, SHADOW_DIM);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shadowProgram);
+	glCullFace(GL_FRONT);
 	mat4 depthProj = Orthographic(-80, 80, -80, 80, -20, 100);
 	mat4 depthView = LookAt(vec3(20, 30, 20), vec3(0, 0, 0), vec3(0, 1, 0));
 	mat4 depthVP = depthProj * depthView;
@@ -586,6 +626,7 @@ void draw() {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, win_width, win_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	glCullFace(GL_BACK);
 	// Draw scene as usual
     if (camera_loc == 1) { // Third person chase camera
         vec3 cameraDir = (car.dir + 2 * car.vel) / 2;
@@ -622,11 +663,13 @@ void draw() {
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
      */
+	render_imgui();
 	glFlush();
 }
 
 int main() {
 	srand((int)time(NULL));
+	// Initializing GLFW and creating window
 	if (!glfwInit())
 		return 1;
 	glfwWindowHint(GLFW_SAMPLES, 4);
@@ -639,11 +682,20 @@ int main() {
 	window = glfwCreateWindow(win_width, win_height, "Drive", NULL, NULL);
 	if (!window)
 		throw runtime_error("Failed to create GLFW window!");
+	// Setting up GLFW/OpenGL context 
 	glfwMakeContextCurrent(window);
 	gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 	glfwSetWindowPos(window, 100, 100);
 	glfwGetFramebufferSize(window, &win_width, &win_height);
 	glfwSwapInterval(1);
+	// Set up ImGui context 
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	ImGui::StyleColorsDark();
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 410 core");
+	// Setup, icon loading
 	load_icon();
 	setup();
 	time_p lastSim = sys_clock::now();
@@ -660,6 +712,11 @@ int main() {
 		glfwSwapBuffers(window);
 	}
 	cleanup();
+	// Cleaning up ImGui context
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+	// Closing window and cleaning up GLFW
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
