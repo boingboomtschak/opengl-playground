@@ -21,6 +21,7 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
+#include "imgui/implot.h"
 
 using std::vector;
 using std::string;
@@ -40,6 +41,7 @@ GLuint shadowTexture = 0;
 
 float lightColor[3] = { 1.0f, 1.0f, 1.0f };
 int shadowEdgeSamples = 16;
+static bool showPerformance = false;
 
 
 // TEX QUAD DEBUG
@@ -148,11 +150,17 @@ const char* meshCtrFrag = R"(
 )";
 
 vector<dSkybox> skyboxes;
-vector<string> skyboxPaths{
+vector<string> skyboxPaths {
 	"textures/skybox/maskonaive/",
 	"textures/skybox/classic-land/",
 	"textures/skybox/empty-space/",
 	"textures/skybox/dusk-ocean/"
+};
+vector<string> skyboxNames {
+	"Maskonaive",
+	"Classic Land",
+	"Empty Space",
+	"Dusk Ocean"
 };
 int cur_skybox = 0;
 
@@ -498,6 +506,27 @@ void update_title(time_p cur) {
 	}
 }
 
+void show_performance_window() {
+	ImGuiIO& io = ImGui::GetIO();
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings;
+	window_flags |= ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
+	window_flags |= ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoCollapse;
+	const ImGuiViewport* viewport = ImGui::GetMainViewport();
+	ImVec2 work_pos = viewport->WorkPos;
+	ImVec2 work_size = viewport->WorkSize;
+	ImVec2 window_pos, window_pos_pivot;
+	window_pos.x = work_pos.x + work_size.x - 10.0f;
+	window_pos.y = work_pos.y + 10.0f;
+	window_pos_pivot.x = 1.0f;
+	window_pos_pivot.y = 0.0f;
+	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+	ImGui::SetNextWindowBgAlpha(0.35f);
+	if (ImGui::Begin("Performance", NULL, window_flags)) {
+		ImGui::Text("Framerate: %.0f fps", io.Framerate);
+	}
+	ImGui::End();
+}
+
 void render_imgui() {
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
@@ -505,12 +534,15 @@ void render_imgui() {
 
 	ImGui::BeginMainMenuBar();
 	if (ImGui::BeginMenu("Drive")) {
+		if (ImGui::MenuItem("Performance Window", NULL, showPerformance)) showPerformance = !showPerformance;
 		if (ImGui::MenuItem("Quit", "CTRL + Q", false)) glfwSetWindowShouldClose(window, GLFW_TRUE);
 		ImGui::EndMenu();
 	}
-	if (ImGui::BeginMenu("Lighting")) {
-		ImGui::ColorEdit3("Light Color", lightColor);
-		if (ImGui::BeginCombo("Shadow Edge Samples", "", ImGuiComboFlags_NoPreview)) {
+	if (ImGui::BeginMenu("Renderer")) {
+		ImGui::ColorEdit3("Directional Light Color", lightColor);
+		char sampleComboPreview[11];
+		snprintf(sampleComboPreview, 11, "%d Samples", shadowEdgeSamples);
+		if (ImGui::BeginCombo("Shadow Edge Samples", sampleComboPreview)) {
 			if (ImGui::Selectable("2 Samples", shadowEdgeSamples == 2)) shadowEdgeSamples = 2;
 			if (ImGui::Selectable("4 Samples", shadowEdgeSamples == 4)) shadowEdgeSamples = 4;
 			if (ImGui::Selectable("8 Samples", shadowEdgeSamples == 8)) shadowEdgeSamples = 8;
@@ -518,10 +550,17 @@ void render_imgui() {
 			if (ImGui::Selectable("32 Samples", shadowEdgeSamples == 32)) shadowEdgeSamples = 32;
 			ImGui::EndCombo();
 		}
-
+		if (ImGui::BeginCombo("Skybox", skyboxNames[cur_skybox].c_str())) {
+			for (size_t i = 0; i < skyboxes.size(); i++) {
+				if (ImGui::Selectable(skyboxNames[i].c_str(), cur_skybox == i)) cur_skybox = i;
+			}
+			ImGui::EndCombo();
+		}
 		ImGui::EndMenu();
 	}
 	ImGui::EndMainMenuBar();
+
+	if (showPerformance) show_performance_window();
 
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -579,7 +618,6 @@ void setup() {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_CULL_FACE);
-    glClearColor(0.651f, 0.961f, 0.941f, 1.0f);
     // TEX QUAD DEBUG
     if (!(quadProgram = LinkProgramViaCode(&quadVert, &quadFrag)))
         throw runtime_error("Failed to compile debug quad program!");
@@ -691,7 +729,9 @@ int main() {
 	// Set up ImGui context 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	ImPlot::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.IniFilename = NULL;
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 410 core");
@@ -712,9 +752,10 @@ int main() {
 		glfwSwapBuffers(window);
 	}
 	cleanup();
-	// Cleaning up ImGui context
+	// Cleaning up ImGui/ImPlot context
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
+	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
 	// Closing window and cleaning up GLFW
 	glfwDestroyWindow(window);
