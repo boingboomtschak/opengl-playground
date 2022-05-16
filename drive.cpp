@@ -27,9 +27,11 @@
 using std::vector;
 using std::string;
 using std::runtime_error;
+using time_p = std::chrono::system_clock::time_point;
+using sys_clock = std::chrono::system_clock;
+using double_ms = std::chrono::duration<double, std::milli>;
 
 GLFWwindow* window;
-
 int windowed_width = 1000, windowed_height = 800;
 int win_width = windowed_width, win_height = windowed_height;
 bool fullscreen = false;
@@ -43,11 +45,6 @@ GLuint shadowTexture = 0;
 float lightColor[3] = { 1.0f, 1.0f, 1.0f };
 int shadowEdgeSamples = 16;
 static bool showPerformance = false;
-
-typedef std::chrono::system_clock::time_point time_p;
-typedef std::chrono::system_clock sys_clock;
-typedef std::chrono::duration<double, std::milli> double_ms;
-
 
 const char* shadowVert = R"(
 	#version 410 core
@@ -205,8 +202,11 @@ struct MeshContainer {
 		compile();
 	}
 	MeshContainer(string objFilename, string texFilename, mat4 mdl) {
-		if (!ReadAsciiObj(objFilename.c_str(), points, triangles, &normals, &uvs))
-			throw runtime_error("Failed to read mesh obj '" + objFilename + "'!");
+		ObjData objData = readObj(objFilename);
+		points = objData.points;
+		normals = objData.normals;
+		uvs = objData.uvs;
+		triangles = objData.indices;
 		Normalize(points, 1.0f);
 		texture = loadTexture(texFilename);
 		if (texture < 0)
@@ -689,6 +689,23 @@ int main() {
 	// Setup, icon loading
 	load_icon();
 	setup();
+	// test obj reading
+	/*
+	vector<vec3> points;
+	vector<vec3> normals;
+	vector<vec2> uvs;
+	vector<int3> tris;
+	time_p t1 = sys_clock::now();
+	ReadAsciiObj("objects/largetree.obj", points, tris, &normals, &uvs);
+	time_p t2 = sys_clock::now();
+	readObj("objects/largetree.obj");
+	time_p t3 = sys_clock::now();
+	double_ms rao = t2 - t1;
+	double_ms ra = t3 - t2;
+	printf("ReadAsciiObj: %.2f ms\n", rao.count());
+	printf("readObj: %.2f ms\n", ra.count());
+	*/
+
 	time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
 		time_p cur = sys_clock::now();
