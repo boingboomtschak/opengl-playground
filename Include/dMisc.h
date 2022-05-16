@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <vector>
 #include <fstream>
-#include <set>
+#include <unordered_map>
 #include <utility>
 #include <iterator>
 #include "stb_image.h"
@@ -15,6 +15,7 @@
 #include "VecMat.h"
 
 using std::vector;
+using std::unordered_map;
 using std::runtime_error;
 using std::string;
 using std::ifstream;
@@ -71,29 +72,49 @@ inline ObjData readObj(string filename) {
 	}
 	// Create unique set of vertices from faces and create int3 indices
 	vector<string> verts;
+	unordered_map<string, size_t> vertMap;
 	for (string face : f) {
 		char v1[20] = { '\0' }, v2[20] = { '\0' }, v3[20] = { '\0' }, v4[20] = { '\0' };
 		int inds = sscanf(face.c_str(), "%s %s %s %s", &v1, &v2, &v3, &v4);
 		string sv1(v1), sv2(v2), sv3(v3), sv4(v4);
 		// i1
-		vector<string>::iterator it;
-		it = find(verts.begin(), verts.end(), sv1);
 		int i1 = 0;
-		if (it == verts.end()) { i1 = verts.size(); verts.push_back(sv1); } else i1 = distance(verts.begin(), it);
+		if (vertMap.find(sv1) != vertMap.end()) {
+			i1 = vertMap[sv1];
+		} else {
+			i1 = verts.size();
+			vertMap[sv1] = i1;
+			verts.push_back(sv1);
+		}
 		// i2
-		it = find(verts.begin(), verts.end(), sv2);
 		int i2 = 0;
-		if (it == verts.end()) { i2 = verts.size(); verts.push_back(sv2); } else i2 = distance(verts.begin(), it);
+		if (vertMap.find(sv2) != vertMap.end()) {
+			i2 = vertMap[sv2];
+		} else {
+			i2 = verts.size();
+			vertMap[sv2] = i2;
+			verts.push_back(sv2);
+		}
 		// i3
-		it = find(verts.begin(), verts.end(), sv3);
 		int i3 = 0;
-		if (it == verts.end()) { i3 = verts.size(); verts.push_back(sv3); } else i3 = distance(verts.begin(), it);
+		if (vertMap.find(sv3) != vertMap.end()) {
+			i3 = vertMap[sv3];
+		} else {
+			i3 = verts.size();
+			vertMap[sv3] = i3;
+			verts.push_back(sv3);
+		}
 		int3 tri = int3(i1, i2, i3);
 		obj.indices.push_back(tri);
 		if (inds == 4) {
-			it = find(verts.begin(), verts.end(), sv4);
 			int i4 = 0;
-			if (it == verts.end()) { i4 = verts.size(); verts.push_back(sv4); } else i4 = distance(verts.begin(), it);
+			if (vertMap.find(sv4) != vertMap.end()) {
+				i4 = vertMap[sv4];
+			} else {
+				i4 = verts.size();
+				vertMap[sv4] = i4;
+				verts.push_back(sv4);
+			}
 			int3 tri2 = int3(i3, i4, i1);
 			obj.indices.push_back(tri2);
 		}

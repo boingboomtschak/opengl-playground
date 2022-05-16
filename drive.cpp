@@ -690,7 +690,7 @@ int main() {
 	load_icon();
 	setup();
 	// test obj reading
-	/*
+	
 	vector<vec3> points;
 	vector<vec3> normals;
 	vector<vec2> uvs;
@@ -704,7 +704,7 @@ int main() {
 	double_ms ra = t3 - t2;
 	printf("ReadAsciiObj: %.2f ms\n", rao.count());
 	printf("readObj: %.2f ms\n", ra.count());
-	*/
+	
 
 	time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
