@@ -706,7 +706,7 @@ int main() {
 	setup();
     time_p init_finish = sys_clock::now();
     double_ms init_dur = init_finish - init_start;
-    printf("Initialization took %.2f m\n", init_dur.count());
+    printf("Initialization took %.2f ms\n", init_dur.count());
 	time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
 		time_p cur = sys_clock::now();
