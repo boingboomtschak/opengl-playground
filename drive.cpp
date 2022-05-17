@@ -14,8 +14,6 @@
 #include "VecMat.h"
 #include "GLXtras.h"
 #include "GeomUtils.h"
-#include "Mesh.h"
-#include "Misc.h"
 #include "dSkybox.h"
 #include "dParticles.h"
 #include "dTextureDebug.h"
@@ -44,9 +42,14 @@ GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
 
 float lightColor[3] = { 1.0f, 1.0f, 1.0f };
+float init_time;
 int shadowEdgeSamples = 16;
-static bool showPerformance = false;
 
+const int PERF_MEMORY = 50;
+static bool showPerformance = false;
+float fps_x[PERF_MEMORY] = { 0.0f };
+float fps_y[PERF_MEMORY] = { 0.0f };
+float fps_shade[PERF_MEMORY] = { 0.0f };
 const char* shadowVert = R"(
 	#version 410 core
 	in vec3 point;
@@ -208,7 +211,8 @@ struct MeshContainer {
 		normals = objData.normals;
 		uvs = objData.uvs;
 		triangles = objData.indices;
-		Normalize(points, 1.0f);
+		//Normalize(points, 1.0f);
+        normalizePoints(points, 1.0f);
 		texture = loadTexture(texFilename);
 		if (texture < 0)
 			throw runtime_error("Failed to read texture '" + texFilename + "'!");
@@ -428,8 +432,13 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
 		car.pos = vec3(2, 0, 0);
 		car.vel = vec3(0, 0, 0);
 	}
-	if (key == GLFW_KEY_P && action == GLFW_PRESS)
-		printf("Pos: %.2f %.2f %.2f\n", car.pos.x, car.pos.y, car.pos.z);
+    if (key == GLFW_KEY_P && action == GLFW_PRESS) {
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+            showPerformance = !showPerformance;
+        } else {
+            printf("Pos: %.2f %.2f %.2f\n", car.pos.x, car.pos.y, car.pos.z);
+        }
+    }
     if (key == GLFW_KEY_1 && action == GLFW_PRESS)
         camera_loc = 1;
     if (key == GLFW_KEY_2 && action == GLFW_PRESS)
@@ -480,16 +489,31 @@ void load_icon() {
 void update_title(time_p cur) {
 	static time_p lastTitleUpdate = sys_clock::now();
 	double_ms sinceTitleUpdate = cur - lastTitleUpdate;
-	if (sinceTitleUpdate.count() > 200.0f) {
-		char title[30];
-		snprintf(title, 30, "Drive: %.0f fps", (1.0f / dt) * 60.0f);
-		glfwSetWindowTitle(window, title);
-		lastTitleUpdate = cur;
-	}
+    if (sinceTitleUpdate.count() < 200.0f) return;
+    char title[30];
+    snprintf(title, 30, "Drive: %.0f fps", (1.0f / dt) * 60.0f);
+    glfwSetWindowTitle(window, title);
+    lastTitleUpdate = cur;
+}
+
+void init_perf() {
+    for (int i = 0; i < PERF_MEMORY; i++)
+        fps_x[i] = (float)i;
+}
+
+void collect_perf(time_p cur) {
+    static time_p lastPerfCollect = sys_clock::now();
+    double_ms sincePerfCollect = cur - lastPerfCollect;
+    if (sincePerfCollect.count() < 500.0f) return;
+    ImGuiIO& io = ImGui::GetIO();
+    for (int i = 1; i < PERF_MEMORY; i++) {
+        fps_y[i - 1] = fps_y[i];
+    }
+    fps_y[PERF_MEMORY - 1] = io.Framerate;
+    lastPerfCollect = cur;
 }
 
 void show_performance_window() {
-	ImGuiIO& io = ImGui::GetIO();
 	ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings;
 	window_flags |= ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs;
 	window_flags |= ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoCollapse;
@@ -504,7 +528,21 @@ void show_performance_window() {
 	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
 	ImGui::SetNextWindowBgAlpha(0.35f);
 	if (ImGui::Begin("Performance", NULL, window_flags)) {
-		ImGui::Text("Framerate: %.0f fps", io.Framerate);
+        ImGui::Text("Init Time: %.2f ms", init_time);
+        static ImPlotFlags plot_flags = ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText;
+        ImPlot::PushStyleColor(ImPlotCol_FrameBg, {0, 0, 0, 0.3});
+        ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
+        if (ImPlot::BeginPlot("Frames Per Second", ImVec2(win_width / 6.0f, win_height / 12.0f), plot_flags)) {
+            static ImPlotAxisFlags plot_x_flags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_NoTickMarks | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_NoGridLines;
+            static ImPlotAxisFlags plot_y_flags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit;
+            ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.35f);
+            ImPlot::SetupAxes("", "", plot_x_flags, plot_y_flags);
+            ImPlot::PlotShaded("", fps_x, fps_shade, fps_y, PERF_MEMORY);
+            ImPlot::PlotLine("", fps_x, fps_y, PERF_MEMORY);
+            ImPlot::PopStyleVar();
+            ImPlot::EndPlot();
+        }
+        ImPlot::PopStyleColor(2);
 	}
 	ImGui::End();
 }
@@ -543,6 +581,8 @@ void render_imgui() {
 	ImGui::EndMainMenuBar();
 
 	if (showPerformance) show_performance_window();
+    
+    ImPlot::ShowDemoWindow();
 
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -574,7 +614,7 @@ void setup() {
         throw runtime_error("Failed to set up shadow framebuffer!");
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Setup meshes
-	mat4 car_transform = Scale(0.75f) * Translate(0, 0.38, 0) * RotateY(-90);
+	mat4 car_transform = Scale(0.75f) * RotateY(-90);
 	MeshContainer car_mesh = MeshContainer("objects/car.obj", "textures/car.png", car_transform);
 	car_mesh.allocate();
 	// Mesh, mass, engine force, rolling resistance, air drag
@@ -582,10 +622,10 @@ void setup() {
 	car.pos = vec3(2, 0, 0);
 	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "textures/racetrack.png");
 	floor_mesh.allocate();
-	mat4 large_tree_transform = Scale(2.0) * Translate(0, 0.9, 0);
+    mat4 large_tree_transform = Scale(2.0);
 	large_tree_mesh = MeshContainer("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
 	large_tree_mesh.allocate();
-	mat4 grass_transform = Translate(vec3(0, 0.2, 0));
+	mat4 grass_transform;
 	grass_mesh = MeshContainer("objects/grass.obj", "textures/grass.png", grass_transform);
 	grass_mesh.allocate();
 	// Setup skyboxes
@@ -706,14 +746,16 @@ int main() {
 	setup();
     time_p init_finish = sys_clock::now();
     double_ms init_dur = init_finish - init_start;
-    printf("Initialization took %.2f ms\n", init_dur.count());
-	time_p lastSim = sys_clock::now();
+    init_time = init_dur.count();
+    init_perf();
+    time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
 		time_p cur = sys_clock::now();
 		double_ms since = cur - lastSim;
 		dt = 1 / (1000.0f / since.count() / 60.0f);
 		lastSim = cur;
 		update_title(cur);
+        collect_perf(cur);
 		car.update(dt);
 		car.collide();
 		draw();

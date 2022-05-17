@@ -8,8 +8,8 @@
 #include <vector>
 #include <fstream>
 #include <map>
-#include <utility>
-#include <iterator>
+#include <algorithm>
+#include <float.h>
 #include "stb_image.h"
 #include "glad.h"
 #include "VecMat.h"
@@ -20,8 +20,8 @@ using std::runtime_error;
 using std::string;
 using std::ifstream;
 using std::getline;
-using std::distance;
 using std::find;
+using std::max;
 
 inline GLuint loadTexture(string filename, bool mipmap = true, GLint min_filter = GL_LINEAR, GLint mag_filter = GL_NEAREST) {
 	// Load image from file, force RGBA
@@ -150,6 +150,24 @@ inline ObjData readObj(string filename) {
 	}
 	file.close();
 	return obj;
+}
+
+inline void normalizePoints(vector<vec3>& points, float scale) {
+    vec3 pmin = vec3(FLT_MAX), pmax = vec3(-FLT_MAX);
+    for (vec3 pt : points) {
+        if (pt.x < pmin.x) pmin.x = pt.x;
+        if (pt.y < pmin.y) pmin.y = pt.y;
+        if (pt.z < pmin.z) pmin.z = pt.z;
+        if (pt.x > pmax.x) pmax.x = pt.x;
+        if (pt.y > pmax.y) pmax.y = pt.y;
+        if (pt.z > pmax.z) pmax.z = pt.z;
+    }
+    vec3 range = pmax - pmin;
+    float maxrange = max({range.x, range.y, range.z});
+    float s = scale * 2.0f / maxrange;
+    for (size_t i = 0; i < points.size(); i++) {
+        points[i] = s * (points[i]);
+    }
 }
 
 #endif
