@@ -533,7 +533,7 @@ void render_imgui() {
 			ImGui::EndCombo();
 		}
 		if (ImGui::BeginCombo("Skybox", skyboxNames[cur_skybox].c_str())) {
-			for (size_t i = 0; i < skyboxes.size(); i++) {
+			for (int i = 0; i < skyboxes.size(); i++) {
 				if (ImGui::Selectable(skyboxNames[i].c_str(), cur_skybox == i)) cur_skybox = i;
 			}
 			ImGui::EndCombo();
@@ -672,6 +672,7 @@ void draw() {
 
 int main() {
 	srand((int)time(NULL));
+    time_p init_start = sys_clock::now();
 	// Initializing GLFW and creating window
 	if (!glfwInit())
 		return 1;
@@ -703,6 +704,9 @@ int main() {
 	// Setup, icon loading
 	load_icon();
 	setup();
+    time_p init_finish = sys_clock::now();
+    double_ms init_dur = init_finish - init_start;
+    printf("Initialization took %.2f m\n", init_dur.count());
 	time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
 		time_p cur = sys_clock::now();

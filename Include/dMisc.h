@@ -100,7 +100,7 @@ inline ObjData readObj(string filename) {
 			// i1
 			int i1;
 			if (faceMap.find(v1) == faceMap.end()) {
-				i1 = obj.points.size();
+				i1 = (int)obj.points.size();
 				faceMap[v1] = i1;
 				obj.points.push_back(pts[v1.i1]);
 				obj.uvs.push_back(uvs[v1.i2]);
@@ -111,7 +111,7 @@ inline ObjData readObj(string filename) {
 			// i2
 			int i2;
 			if (faceMap.find(v2) == faceMap.end()) {
-				i2 = obj.points.size();
+				i2 = (int)obj.points.size();
 				faceMap[v2] = i2;
 				obj.points.push_back(pts[v2.i1]);
 				obj.uvs.push_back(uvs[v2.i2]);
@@ -122,7 +122,7 @@ inline ObjData readObj(string filename) {
 			// i3
 			int i3;
 			if (faceMap.find(v3) == faceMap.end()) {
-				i3 = obj.points.size();
+				i3 = (int)obj.points.size();
 				faceMap[v3] = i3;
 				obj.points.push_back(pts[v3.i1]);
 				obj.uvs.push_back(uvs[v3.i2]);
@@ -136,7 +136,7 @@ inline ObjData readObj(string filename) {
 				// i4
 				int i4;
 				if (faceMap.find(v4) == faceMap.end()) {
-					i4 = obj.points.size();
+					i4 = (int)obj.points.size();
 					faceMap[v4] = i4;
 					obj.points.push_back(pts[v4.i1]);
 					obj.uvs.push_back(uvs[v4.i2]);
