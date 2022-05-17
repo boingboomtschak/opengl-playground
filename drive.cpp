@@ -33,6 +33,10 @@ using double_ms = std::chrono::duration<double, std::milli>;
 GLFWwindow* window;
 int windowed_width = 1000, windowed_height = 800;
 int win_width = windowed_width, win_height = windowed_height;
+GLFWmonitor* monitor;
+const GLFWvidmode* videoModes;
+GLFWvidmode currentVidMode;
+int videoModesCount;
 bool fullscreen = false;
 float dt;
 
@@ -464,15 +468,9 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
 			fullscreen = false;
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		} else {
-			GLFWmonitor* monitor = glfwGetPrimaryMonitor();
-			if (monitor != NULL) {
-                int videoModesCount;
-                const GLFWvidmode* videoModes = glfwGetVideoModes(monitor, &videoModesCount);
-                const GLFWvidmode highest = videoModes[videoModesCount - 1];
-				glfwSetWindowMonitor(window, monitor, 0, 0, highest.width, highest.height, highest.refreshRate);
-				fullscreen = true;
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-			}
+            glfwSetWindowMonitor(window, monitor, 0, 0, currentVidMode.width, currentVidMode.height, currentVidMode.refreshRate);
+            fullscreen = true;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 		}
 	}
 }
@@ -528,7 +526,8 @@ void show_performance_window() {
 	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
 	ImGui::SetNextWindowBgAlpha(0.35f);
 	if (ImGui::Begin("Performance", NULL, window_flags)) {
-        ImGui::Text("Init Time: %.2f ms", init_time);
+        ImGui::Text("Initialization Time: %.2f ms", init_time);
+        ImGui::Separator();
         static ImPlotFlags plot_flags = ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText;
         ImPlot::PushStyleColor(ImPlotCol_FrameBg, {0, 0, 0, 0.3});
         ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
@@ -578,12 +577,25 @@ void render_imgui() {
 		}
 		ImGui::EndMenu();
 	}
+    if (ImGui::BeginMenu("Settings")) {
+        char videoModeComboLabel[20];
+        snprintf(videoModeComboLabel, 20, "%dx%d %dHz", currentVidMode.width, currentVidMode.height, currentVidMode.refreshRate);
+        if (ImGui::BeginCombo("Fullscreen Mode", videoModeComboLabel)) {
+            for (size_t i = 0; i < videoModesCount; i++) {
+                snprintf(videoModeComboLabel, 20, "%dx%d %dHz", videoModes[i].width, videoModes[i].height, videoModes[i].refreshRate);
+                if (ImGui::Selectable(videoModeComboLabel, videoModes[i] == currentVidMode)) {
+                    currentVidMode = videoModes[i];
+                    if (fullscreen) glfwSetWindowMonitor(window, monitor, 0, 0, currentVidMode.width, currentVidMode.width, currentVidMode.refreshRate);
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::EndMenu();
+    }
 	ImGui::EndMainMenuBar();
 
 	if (showPerformance) show_performance_window();
     
-    ImPlot::ShowDemoWindow();
-
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
@@ -732,6 +744,10 @@ int main() {
 	glfwSetWindowPos(window, 100, 100);
 	glfwGetFramebufferSize(window, &win_width, &win_height);
 	glfwSwapInterval(1);
+    if (!(monitor = glfwGetPrimaryMonitor()))
+        throw runtime_error("Failed to get GLFW primary monitor!");
+    videoModes = glfwGetVideoModes(monitor, &videoModesCount);
+    currentVidMode = videoModes[videoModesCount - 1];
 	// Set up ImGui context 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();

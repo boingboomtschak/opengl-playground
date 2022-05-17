@@ -23,6 +23,30 @@ using std::getline;
 using std::find;
 using std::max;
 
+// ------ PRIVATE ------
+namespace {
+
+struct int3compare {
+    bool operator() (const int3& a, const int3& b) const {
+        return a.i1 == b.i1 ? (a.i2 == b.i2 ? a.i3 < b.i3 : a.i2 < b.i2) : a.i1 < b.i1;
+    }
+};
+// ---------------------
+
+};
+
+// ------ STRUCTS ------
+
+struct ObjData {
+    vector<vec3> points;
+    vector<vec3> normals;
+    vector<vec2> uvs;
+    vector<int3> indices;
+};
+
+// ---------------------
+
+
 inline GLuint loadTexture(string filename, bool mipmap = true, GLint min_filter = GL_LINEAR, GLint mag_filter = GL_NEAREST) {
 	// Load image from file, force RGBA
 	int w, h;
@@ -44,23 +68,17 @@ inline GLuint loadTexture(string filename, bool mipmap = true, GLint min_filter 
 	return texture;
 }
 
-struct ObjData {
-	vector<vec3> points;
-	vector<vec3> normals;
-	vector<vec2> uvs;
-	vector<int3> indices;
-};
 
-namespace {
 
-struct int3compare {
-	bool operator() (const int3& a, const int3& b) const {
-		return a.i1 == b.i1 ? (a.i2 == b.i2 ? a.i3 < b.i3 : a.i2 < b.i2) : a.i1 < b.i1;
-	}
-};
-
-};
-
+// Reads simple ASCII obj files - does not handle:
+// - binary obj files
+// - obj files with polygonal faces beyond tris and quads
+// - obj materials / material coordinates
+// - obj files with faces missing v/vt/vn references
+// - named objects
+// - polygon groups
+// - enabling smooth shading
+// - polylines
 inline ObjData readObj(string filename) {
 	ObjData obj;
 	// Open OBJ file
@@ -152,6 +170,7 @@ inline ObjData readObj(string filename) {
 	return obj;
 }
 
+// Scales series of points such that all points are within [-SCALE, SCALE]
 inline void normalizePoints(vector<vec3>& points, float scale) {
     vec3 pmin = vec3(FLT_MAX), pmax = vec3(-FLT_MAX);
     for (vec3 pt : points) {
@@ -169,5 +188,11 @@ inline void normalizePoints(vector<vec3>& points, float scale) {
         points[i] = s * (points[i]);
     }
 }
+
+// Adding comparison operator for GLFWvidmode for comparing against current video mode
+bool operator==(const GLFWvidmode& a, const GLFWvidmode& b) {
+    return a.width == b.width && a.height == b.height && a.refreshRate == b.refreshRate && a.redBits == b.redBits && a.greenBits == b.greenBits && a.blueBits == b.blueBits;
+}
+
 
 #endif
