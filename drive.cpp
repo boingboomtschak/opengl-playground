@@ -15,6 +15,7 @@
 #include "GLXtras.h"
 #include "GeomUtils.h"
 #include "Mesh.h"
+#include "Misc.h"
 #include "dSkybox.h"
 #include "dParticles.h"
 #include "dTextureDebug.h"
@@ -312,6 +313,13 @@ vector<vec3> large_tree_positions = {
 	{-10, 0, 32}, {-34, 0, 7}, {15, 0, -13}, {6, 0, -15},
 	{-0.75, 0, 0.3}
 };
+MeshContainer grass_mesh;
+vector<vec3> grass_positions = {
+	{7.79, 0, -5.38}, {5.27, 0, -8.41}, {-6.32, 0, -8.58}, {-9.40, 0, -5.62}, 
+	{-9.49, 0, 5.47}, {-6.46, 0, 8.56}, {4.59, 0, 9.61}, {7.51, 0, 6.12},
+	{12.07, 0, 5.49}, {15.67, 0, 5.87}, {20.84, 0, 5.78}, {23.66, 0, 10.43},
+	{16.71, 0, 11.87}
+};
 
 struct Car {
 	MeshContainer mesh;
@@ -410,7 +418,6 @@ void WindowResized(GLFWwindow* window, int _width, int _height) {
 	win_width = width;
 	win_height = height;
 	camera.resize(width, height);
-	
 	glViewport(0, 0, win_width, win_height);
 }
 
@@ -578,6 +585,9 @@ void setup() {
 	mat4 large_tree_transform = Scale(2.0) * Translate(0, 0.9, 0);
 	large_tree_mesh = MeshContainer("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
 	large_tree_mesh.allocate();
+	mat4 grass_transform = Translate(vec3(0, 0.2, 0));
+	grass_mesh = MeshContainer("objects/grass.obj", "textures/grass.png", grass_transform);
+	grass_mesh.allocate();
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
 		dSkybox skybox;
@@ -600,6 +610,7 @@ void cleanup() {
 	car.mesh.deallocate();
 	floor_mesh.deallocate();
 	large_tree_mesh.deallocate();
+	grass_mesh.deallocate();
 	for (dSkybox skybox : skyboxes)
 		skybox.cleanup();
     particleSystem.cleanup();
@@ -621,6 +632,8 @@ void draw() {
 	floor_mesh.drawDepth(Scale(60));
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.drawDepth(Translate(pos));
+	for (vec3 pos : grass_positions)
+		grass_mesh.drawDepth(Translate(pos));
 	car.drawDepth();
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, win_width, win_height);
@@ -647,11 +660,12 @@ void draw() {
 	floor_mesh.draw(Scale(60), depthVP);
 	for (vec3 pos : large_tree_positions)
 		large_tree_mesh.draw(Translate(pos), depthVP);
+	for (vec3 pos : grass_positions)
+		grass_mesh.draw(Translate(pos), depthVP);
 	car.draw(depthVP);
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
-	// DEBUG SHADOW TEXTURE
-	dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
+	//dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
 	render_imgui();
 	glFlush();
 }
@@ -689,23 +703,6 @@ int main() {
 	// Setup, icon loading
 	load_icon();
 	setup();
-	// test obj reading
-	
-	vector<vec3> points;
-	vector<vec3> normals;
-	vector<vec2> uvs;
-	vector<int3> tris;
-	time_p t1 = sys_clock::now();
-	ReadAsciiObj("objects/largetree.obj", points, tris, &normals, &uvs);
-	time_p t2 = sys_clock::now();
-	readObj("objects/largetree.obj");
-	time_p t3 = sys_clock::now();
-	double_ms rao = t2 - t1;
-	double_ms ra = t3 - t2;
-	printf("ReadAsciiObj: %.2f ms\n", rao.count());
-	printf("readObj: %.2f ms\n", ra.count());
-	
-
 	time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
 		time_p cur = sys_clock::now();
