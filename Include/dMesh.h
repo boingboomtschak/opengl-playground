@@ -4,7 +4,6 @@
 #include <stdexcept>
 #include "glad.h"
 #include "VecMat.h"
-#include "GLXtras.h"
 #include "dMisc.h"
 
 using std::vector;
@@ -24,7 +23,7 @@ Render passes using it should:
  - Expect its texture to be bound to unit 0
 */
 
-inline struct dMesh {
+struct dMesh {
     mat4 model = mat4();
     GLuint vArray = 0;
     GLuint vBuffer = 0;
@@ -51,35 +50,41 @@ inline struct dMesh {
         model = modelTransform;
         allocate();
     }
-    ~dMesh() {
-        glDeleteVertexArrays(1, &vArray);
-        glDeleteBuffers(1, &vBuffer);
-        glDeleteBuffers(1, &iBuffer);
-        glDeleteTextures(1, &texture);
-    }
     void allocate() {
         glGenVertexArrays(1, &vArray);
         glBindVertexArray(vArray);
         size_t pSize = objData.points.size() * sizeof(vec3);
-        size_t nSize = objData.normals.size() * sizeof(vec3);
         size_t uSize = objData.uvs.size() * sizeof(vec2);
-        size_t vBufSize = pSize + nSize + uSize;
+        size_t nSize = objData.normals.size() * sizeof(vec3);
+        size_t vBufSize = pSize + uSize + nSize;
         glGenBuffers(1, &vBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
         glBufferData(GL_ARRAY_BUFFER, vBufSize, NULL, GL_STATIC_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, pSize, objData.points.data());
-        glBufferSubData(GL_ARRAY_BUFFER, pSize, nSize, objData.normals.data());
-        glBufferSubData(GL_ARRAY_BUFFER, pSize + nSize, uSize, objData.uvs.data());
-        size_t iSize = triangles.size() * sizeof(int3);
+        glBufferSubData(GL_ARRAY_BUFFER, pSize, uSize, objData.uvs.data());
+        glBufferSubData(GL_ARRAY_BUFFER, pSize + uSize, nSize, objData.normals.data());
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(pSize));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(pSize + uSize));
+        size_t iSize = objData.indices.size() * sizeof(int3);
         glGenBuffers(1, &iBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, iSize, objData.indices.data(), GL_STATIC_DRAW);
-        VertexAttribPointer(program, "point", 3, 0, 0); // TODO
-        VertexAttribPointer(program, "normal", 3, 0, (GLvoid*)(pSize)); // TODO
-        VertexAttribPointer(program, "uv", 2, 0, (GLvoid*)(pSize + nSize)); // TODO
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
+    }
+    void cleanup() {
+        if (vArray) glDeleteVertexArrays(1, &vArray);
+        if (vBuffer) glDeleteBuffers(1, &vBuffer);
+        if (iBuffer) glDeleteBuffers(1, &iBuffer);
+        if (texture) glDeleteTextures(1, &texture);
     }
     void render() {
         glBindVertexArray(vArray);
@@ -89,4 +94,4 @@ inline struct dMesh {
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
-}
+};

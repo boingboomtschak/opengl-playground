@@ -194,5 +194,4 @@ bool operator==(const GLFWvidmode& a, const GLFWvidmode& b) {
     return a.width == b.width && a.height == b.height && a.refreshRate == b.refreshRate && a.redBits == b.redBits && a.greenBits == b.greenBits && a.blueBits == b.blueBits;
 }
 
-
 #endif

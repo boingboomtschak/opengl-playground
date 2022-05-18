@@ -17,6 +17,7 @@
 #include "dSkybox.h"
 #include "dParticles.h"
 #include "dTextureDebug.h"
+#include "dMesh.h"
 #include "dMisc.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
@@ -41,6 +42,7 @@ bool fullscreen = false;
 float dt;
 
 const int SHADOW_DIM = 16384;
+GLuint mainProgram = 0;
 GLuint shadowProgram = 0;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
@@ -56,11 +58,14 @@ float fps_y[PERF_MEMORY] = { 0.0f };
 float fps_shade[PERF_MEMORY] = { 0.0f };
 const char* shadowVert = R"(
 	#version 410 core
-	in vec3 point;
+	layout(location = 0) in vec3 point;
+	layout(location = 1) in vec2 uv;
+	layout(location = 2) in vec3 normal;
 	uniform mat4 depth_vp;
 	uniform mat4 model;
+	uniform mat4 transform;
 	void main() {
-		gl_Position = depth_vp * model * vec4(point, 1);
+		gl_Position = depth_vp * transform * model * vec4(point, 1);
 	}
 )";
 
@@ -69,24 +74,26 @@ const char* shadowFrag = R"(
 	void main() {}
 )";
 
-const char* meshCtrVert = R"(
+const char* mainVert = R"(
 	#version 410 core
-	in vec3 point;
-	in vec2 uv;
+	layout(location = 0) in vec3 point;
+	layout(location = 1) in vec2 uv;
+	layout(location = 2) in vec3 normal;
 	out vec2 vUv;
 	out vec4 shadowCoord;
+	uniform mat4 transform;
 	uniform mat4 model;
 	uniform mat4 view;
 	uniform mat4 persp;
-	uniform mat4 depth_mvp;
+	uniform mat4 depth_vp;
 	void main() {
-		shadowCoord = depth_mvp * vec4(point, 1);
+		shadowCoord = depth_vp * transform * model * vec4(point, 1);
 		vUv = uv;
-		gl_Position = persp * view * model * vec4(point, 1);
+		gl_Position = persp * view * transform * model * vec4(point, 1);
 	}
 )";
 
-const char* meshCtrFrag = R"(
+const char* mainFrag = R"(
 	#version 410 core
 	in vec2 vUv;
 	in vec4 shadowCoord;
@@ -188,159 +195,51 @@ int camera_loc = 1;
 // 3 - Hood camera
 // 4 - Frozen free camera, moved right behind car
 
-// Simple mesh wrapper struct
-struct MeshContainer {
-	mat4 model = mat4();
-	GLuint program = 0, texture = 0;
-	GLuint vArray = 0, vBuffer = 0, iBuffer = 0;
-    GLuint depthVArray = 0, depthVBuffer = 0, depthIBuffer = 0;
-	vector<vec3> points;
-	vector<vec3> normals;
-	vector<vec2> uvs;
-	vector<int3> triangles;
-	MeshContainer() { }
-	MeshContainer(vector<vec3> _points, vector<vec3> _normals, vector<vec2> _uvs, vector<int3> _triangles, string texFilename, bool texMipmap = true) {
-		points = _points;
-		normals = _normals;
-		uvs = _uvs;
-		triangles = _triangles;
-		texture = loadTexture(texFilename, texMipmap, GL_LINEAR_MIPMAP_NEAREST, GL_NEAREST);
-		if (texture < 0)
-			throw runtime_error("Failed to read texture '" + texFilename + "'!");
-		compile();
-	}
-	MeshContainer(string objFilename, string texFilename, mat4 mdl) {
-		ObjData objData = readObj(objFilename);
-		points = objData.points;
-		normals = objData.normals;
-		uvs = objData.uvs;
-		triangles = objData.indices;
-		//Normalize(points, 1.0f);
-        normalizePoints(points, 1.0f);
-		texture = loadTexture(texFilename);
-		if (texture < 0)
-			throw runtime_error("Failed to read texture '" + texFilename + "'!");
-		model = mdl;
-		compile();
-	}
-	void compile() {
-		if (!(program = LinkProgramViaCode(&meshCtrVert, &meshCtrFrag)))
-			throw runtime_error("Failed to compile mesh container shaders!");
-	}
-	void allocate() {
-		glGenVertexArrays(1, &vArray);
-		glBindVertexArray(vArray);
-		size_t pSize = points.size() * sizeof(vec3);
-		size_t nSize = normals.size() * sizeof(vec3);
-		size_t uSize = uvs.size() * sizeof(vec2);
-		size_t vBufSize = pSize + nSize + uSize;
-		glGenBuffers(1, &vBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
-		glBufferData(GL_ARRAY_BUFFER, vBufSize, NULL, GL_STATIC_DRAW);
-		glBufferSubData(GL_ARRAY_BUFFER, 0, pSize, points.data());
-		glBufferSubData(GL_ARRAY_BUFFER, pSize, nSize, normals.data());
-		glBufferSubData(GL_ARRAY_BUFFER, pSize + nSize, uSize, uvs.data());
-		size_t tSize = triangles.size() * sizeof(int3);
-		glGenBuffers(1, &iBuffer);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, tSize, triangles.data(), GL_STATIC_DRAW);
-		VertexAttribPointer(program, "point", 3, 0, 0);
-		//VertexAttribPointer(program, "normal", 3, 0, (GLvoid*)(pSize));
-		VertexAttribPointer(program, "uv", 2, 0, (GLvoid*)(pSize + nSize));
-		glBindVertexArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glGenVertexArrays(1, &depthVArray);
-        glBindVertexArray(depthVArray);
-        glGenBuffers(1, &depthVBuffer);
-        glBindBuffer(GL_ARRAY_BUFFER, depthVBuffer);
-        glBufferData(GL_ARRAY_BUFFER, pSize, points.data(), GL_STATIC_DRAW);
-        glGenBuffers(1, &depthIBuffer);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, depthIBuffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, tSize, triangles.data(), GL_STATIC_DRAW);
-        VertexAttribPointer(shadowProgram, "point", 3, 0, 0);
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	}
-	void draw(mat4 transform, mat4 depth_vp = NULL) {
-		glUseProgram(program);
-		glBindVertexArray(vArray);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture);
-		mat4 m = transform * model;
-		SetUniform(program, "model", m);
-		SetUniform(program, "view", camera.view);
-		SetUniform(program, "persp", camera.persp);
-		SetUniform(program, "txtr", 0);
-		if (depth_vp != NULL) {
-            mat4 depth_mvp = depth_vp * m;
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, shadowTexture);
-			SetUniform(program, "depth_mvp", depth_mvp);
-			SetUniform(program, "shadow", 1);
-			SetUniform(program, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
-			SetUniform(program, "edgeSamples", shadowEdgeSamples);
-		}
-		glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        if (depth_vp != NULL) {
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
-	}
-	void drawDepth(mat4 transform) {
-		glBindVertexArray(depthVArray);
-        SetUniform(shadowProgram, "model", transform * model);
-		glDrawElements(GL_TRIANGLES, (GLsizei)(triangles.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
-	}
-	void deallocate() {
-		glDeleteVertexArrays(1, &vArray);
-		glDeleteBuffers(1, &vBuffer);
-		glDeleteBuffers(1, &iBuffer);
-		glDeleteTextures(1, &texture);
-        // deallocate depth VAO/buffers
-        glDeleteVertexArrays(1, &depthVArray);
-        glDeleteBuffers(1, &depthVBuffer);
-        glDeleteBuffers(1, &depthIBuffer);
-	}
-};
-
-MeshContainer floor_mesh;
+dMesh floor_mesh;
 vector<vec3> floor_points = { {-1, 0, -1}, {1, 0, -1}, {1, 0, 1}, {-1, 0, 1} };
 vector<vec3> floor_normals = { {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0} };
 vector<vec2> floor_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
 vector<int3> floor_triangles = { {2, 1, 0}, {0, 3, 2} };
 
-MeshContainer large_tree_mesh;
+dMesh large_tree_mesh;
 vector<vec3> large_tree_positions = {
 	{49, 0, 37}, {50, 0, 32}, {29, 0, 15}, {50, 0, 10},
 	{-10, 0, 32}, {-34, 0, 7}, {15, 0, -13}, {6, 0, -15},
 	{-0.75, 0, 0.3}
 };
-MeshContainer grass_mesh;
+dMesh grass_mesh;
 vector<vec3> grass_positions = {
 	{7.79, 0, -5.38}, {5.27, 0, -8.41}, {-6.32, 0, -8.58}, {-9.40, 0, -5.62}, 
 	{-9.49, 0, 5.47}, {-6.46, 0, 8.56}, {4.59, 0, 9.61}, {7.51, 0, 6.12},
 	{12.07, 0, 5.49}, {15.67, 0, 5.87}, {20.84, 0, 5.78}, {23.66, 0, 10.43},
-	{16.71, 0, 11.87}
+	{16.71, 0, 11.87}, {-7.01, 0, 17.79}, {-7.03, 0, 27.66}, {-7.15, 0, 37.66},
+	{-18.52, 0, 41.08}, {-21.48, 0, 34.07}, {-20.76, 0, 22.88}, {-30.34, 0, 15.04},
+	{-36.73, 0, 14.27}, {-43.83, 0, 14.90}, {-44.92, 0, 9.24}, {-35.86, 0, -6.22},
+	{-25.08, 0, -8.68}, {-14.91, 0, -15.59}, {-10.73, 0, -23.47}, {-11.57, 0, -30.97},
+	{-20.33, 0, -33.76}, {-31.8, 0, -28.42}, {13.06, 0, -5.47}, {20.72, 0, -5.45}, 
+	{31.65, 0, -4.70}, {35.97, 0, -33.82}, {25.40, 0, -36.43}, {9.04, 0, 8.93},
+	{7.82, 0, -36.36}, {5.39, 0, -23.72}, {-9.14, 0, -11.88}, {-20.57, 0, -12.46}, 
+	{-32.20, 0, -20.17}, {-20.66, 0, -26.84}, {4.43, 0, -47.64}, {3.93, 0, -53.39}, 
+	{0.33, 0, -57.04}, {-7.27, 0, -51.45}, {-10.98, 0, -48.05}, {16.12, 0, -50.30}, 
+	{30.95, 0, -49.04}, {45.22, 0, -46.89}, {49.36, 0, -38.55}, {50.14, 0, -25.47}, 
+	{51.44, 0, -17.93}, {48.32, 0, -10.58}, {52.20, 0, -5.34}, {55.19, 0, 2.71}, 
+	{53.23, 0, 10.13}, {48.65, 0, 19.89}, {53.20, 0, 29.25}, {52.94, 0, 39.64}, 
+	{40.97, 0, 53.80}, {33.35, 0, 55.97}, {22.45, 0, 55.02}, {12.37, 0, 52.92}, 
+	{4.89, 0, 51.58}, {7.12, 0, 44.37}, {8.70, 0, 35.15}, {8.79, 0, 15.86}
 };
 
 struct Car {
-	MeshContainer mesh;
-	float mass; // mass of car
-	float engine; // engine force
-	float roll; // rolling resistance
-	float drag; // aerodynamic drag constant
+	dMesh mesh;
+	float mass = 0.0; // mass of car
+	float engine = 0.0; // engine force
+	float roll = 0.0; // rolling resistance
+	float drag = 0.0; // aerodynamic drag constant
 	float last_pt = 0.0f;
 	vec3 pos; // position
 	vec3 dir; // direction
 	vec3 vel; // velocity
 	Car() { };
-	Car(MeshContainer _mesh, float _mass, float _engine, float _roll, float _drag) {
+	Car(dMesh _mesh, float _mass, float _engine, float _roll, float _drag) {
 		mesh = _mesh;
 		mass = _mass;
 		engine = _engine;
@@ -350,13 +249,8 @@ struct Car {
 		dir = vec3(1, 0, 0);
 		vel = vec3(0, 0, 0);
 	}
-	void draw(mat4 depth_mvp = NULL) { 
-		mat4 transform = Translate(pos) * Orientation(dir, vec3(0, 1, 0));
-		mesh.draw(transform, depth_mvp == NULL ? NULL : depth_mvp); 
-	}
-	void drawDepth() {
-		mat4 transform = Translate(pos) * Orientation(dir, vec3(0, 1, 0));
-		mesh.drawDepth(transform);
+	mat4 transform() {
+		return Translate(pos) * Orientation(dir, vec3(0, 1, 0));
 	}
 	void collide() {
 		if (pos.y < 0) pos.y = 0;
@@ -440,7 +334,7 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
         if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
             showPerformance = !showPerformance;
         } else {
-            printf("Pos: %.2f %.2f %.2f\n", car.pos.x, car.pos.y, car.pos.z);
+            printf("{%.2f, %.0f, %.2f}, ", car.pos.x, car.pos.y, car.pos.z);
         }
     }
     if (key == GLFW_KEY_1 && action == GLFW_PRESS)
@@ -524,6 +418,7 @@ void show_performance_window() {
 	window_pos_pivot.x = 1.0f;
 	window_pos_pivot.y = 0.0f;
 	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+	ImGui::SetNextWindowSize(ImVec2(work_size.x / 6.0f, 0.0f));
 	ImGui::SetNextWindowBgAlpha(0.35f);
 	if (ImGui::Begin("Performance", NULL, window_flags)) {
         ImGui::Text("Initialization Time: %.2f ms", init_time);
@@ -531,7 +426,7 @@ void show_performance_window() {
         static ImPlotFlags plot_flags = ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText;
         ImPlot::PushStyleColor(ImPlotCol_FrameBg, {0, 0, 0, 0.3});
         ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
-        if (ImPlot::BeginPlot("Frames Per Second", ImVec2(win_width / 6.0f, win_height / 12.0f), plot_flags)) {
+        if (ImPlot::BeginPlot("Frames Per Second", ImVec2(work_size.x / 5.0f, work_size.y / 10.0f), plot_flags)) {
             static ImPlotAxisFlags plot_x_flags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_NoTickMarks | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_NoGridLines;
             static ImPlotAxisFlags plot_y_flags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit;
             ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.35f);
@@ -604,9 +499,12 @@ void setup() {
 	// Initialize GLFW callbacks
 	glfwSetKeyCallback(window, Keyboard);
 	glfwSetWindowSizeCallback(window, WindowResized);
+	// Compile programs
+	if (!(mainProgram = LinkProgramViaCode(&mainVert, &mainFrag)))
+		throw runtime_error("Failed to compile main render program!");
+	if (!(shadowProgram = LinkProgramViaCode(&shadowVert, &shadowFrag)))
+		throw runtime_error("Failed to compile shadow render program!");
     // Set up shadowmap resources
-    if (!(shadowProgram = LinkProgramViaCode(&shadowVert, &shadowFrag)))
-        throw runtime_error("Failed to compile shadow depth program!");
     glGenFramebuffers(1, &shadowFramebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
     glGenTextures(1, &shadowTexture);
@@ -627,19 +525,15 @@ void setup() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Setup meshes
 	mat4 car_transform = Scale(0.75f) * RotateY(-90);
-	MeshContainer car_mesh = MeshContainer("objects/car.obj", "textures/car.png", car_transform);
-	car_mesh.allocate();
+	dMesh car_mesh = dMesh("objects/car.obj", "textures/car.png", car_transform);
 	// Mesh, mass, engine force, rolling resistance, air drag
 	car = Car(car_mesh, 500.0, 3, 10.0, 10.0);
 	car.pos = vec3(2, 0, 0);
-	floor_mesh = MeshContainer(floor_points, floor_normals, floor_uvs, floor_triangles, "textures/racetrack.png");
-	floor_mesh.allocate();
+	floor_mesh = dMesh(floor_points, floor_uvs, floor_normals, floor_triangles, "textures/racetrack.png");
     mat4 large_tree_transform = Scale(2.0);
-	large_tree_mesh = MeshContainer("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
-	large_tree_mesh.allocate();
+	large_tree_mesh = dMesh("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
 	mat4 grass_transform;
-	grass_mesh = MeshContainer("objects/grass.obj", "textures/grass.png", grass_transform);
-	grass_mesh.allocate();
+	grass_mesh = dMesh("objects/grass.obj", "textures/grass.png", grass_transform);
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
 		dSkybox skybox;
@@ -659,10 +553,10 @@ void setup() {
 
 void cleanup() {
 	// Cleanup meshes
-	car.mesh.deallocate();
-	floor_mesh.deallocate();
-	large_tree_mesh.deallocate();
-	grass_mesh.deallocate();
+	car.mesh.cleanup();
+	floor_mesh.cleanup();
+	large_tree_mesh.cleanup();
+	grass_mesh.cleanup();
 	for (dSkybox skybox : skyboxes)
 		skybox.cleanup();
     particleSystem.cleanup();
@@ -681,15 +575,26 @@ void draw() {
 	mat4 depthView = LookAt(vec3(20, 30, 20), vec3(0, 0, 0), vec3(0, 1, 0));
 	mat4 depthVP = depthProj * depthView;
 	SetUniform(shadowProgram, "depth_vp", depthVP);
-	floor_mesh.drawDepth(Scale(60));
-	for (vec3 pos : large_tree_positions)
-		large_tree_mesh.drawDepth(Translate(pos));
-	for (vec3 pos : grass_positions)
-		grass_mesh.drawDepth(Translate(pos));
-	car.drawDepth();
+	SetUniform(shadowProgram, "model", floor_mesh.model);
+	SetUniform(shadowProgram, "transform", Scale(60));
+	floor_mesh.render();
+	SetUniform(shadowProgram, "model", large_tree_mesh.model);
+	for (vec3 pos : large_tree_positions) {
+		SetUniform(shadowProgram, "transform", Translate(pos));
+		large_tree_mesh.render();
+	}
+	SetUniform(shadowProgram, "model", grass_mesh.model);
+	for (vec3 pos : grass_positions) {
+		SetUniform(shadowProgram, "transform", Translate(pos));
+		grass_mesh.render();
+	}
+	SetUniform(shadowProgram, "model", car.mesh.model);
+	SetUniform(shadowProgram, "transform", car.transform());
+	car.mesh.render();
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, win_width, win_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	glUseProgram(mainProgram);
 	glCullFace(GL_BACK);
 	// Draw scene as usual
     if (camera_loc == 1) { // Third person chase camera
@@ -709,12 +614,31 @@ void draw() {
         camera.up = vec3(0, 1, 0);
         camera.adjustFov(60);
     }
-	floor_mesh.draw(Scale(60), depthVP);
-	for (vec3 pos : large_tree_positions)
-		large_tree_mesh.draw(Translate(pos), depthVP);
-	for (vec3 pos : grass_positions)
-		grass_mesh.draw(Translate(pos), depthVP);
-	car.draw(depthVP);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, shadowTexture);
+	SetUniform(mainProgram, "txtr", 0);
+	SetUniform(mainProgram, "shadow", 1);
+	SetUniform(mainProgram, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
+	SetUniform(mainProgram, "edgeSamples", shadowEdgeSamples);
+	SetUniform(mainProgram, "depth_vp", depthVP);
+	SetUniform(mainProgram, "persp", camera.persp);
+	SetUniform(mainProgram, "view", camera.view);
+	SetUniform(mainProgram, "model", floor_mesh.model);
+	SetUniform(mainProgram, "transform", Scale(60));
+	floor_mesh.render();
+	SetUniform(mainProgram, "model", large_tree_mesh.model);
+	for (vec3 pos : large_tree_positions) {
+		SetUniform(mainProgram, "transform", Translate(pos));
+		large_tree_mesh.render();
+	}
+	SetUniform(mainProgram, "model", grass_mesh.model);
+	for (vec3 pos : grass_positions) {
+		SetUniform(mainProgram, "transform", Translate(pos));
+		grass_mesh.render();
+	}
+	SetUniform(mainProgram, "model", car.mesh.model);
+	SetUniform(mainProgram, "transform", car.transform());
+	car.mesh.render();
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
 	//dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
