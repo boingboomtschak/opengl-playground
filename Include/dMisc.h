@@ -37,11 +37,24 @@ struct int3compare {
 
 // ------ STRUCTS ------
 
+struct Material {
+	string name = ""; // newmtl
+	vec3 ambient = vec3(0, 0, 0); // Ka (0.0 - 1.0) x 3
+	vec3 diffuse = vec3(0, 0, 0); // Kd (0.0 - 1.0) x 3
+	vec3 specular = vec3(0, 0, 0); // Ks (0.0 - 1.0) x 3 
+	float specular_exp = 0.0f; // Ns (0.0 - 1000.0)
+	float density = 1.0f; // d (1.0 - 0.0) or Tr (0.0 - 1.0) { d = 1 - Tr }
+	vec3 transmission = vec3(0, 0, 0);
+	int illum = 0; // (0 - 10) see: mtl illumination models
+
+};
+
 struct ObjData {
     vector<vec3> points;
     vector<vec3> normals;
     vector<vec2> uvs;
     vector<int3> indices;
+	// map<string, Material> mtls;
 };
 
 // ---------------------

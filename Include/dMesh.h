@@ -1,5 +1,8 @@
 // dMesh.h - Render pass agnostic mesh container
 
+#ifndef DMESH_HDR
+#define DMESH_HDR
+
 #include <vector>
 #include <stdexcept>
 #include "glad.h"
@@ -95,3 +98,5 @@ struct dMesh {
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 };
+
+#endif

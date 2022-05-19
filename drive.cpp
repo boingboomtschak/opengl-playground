@@ -59,8 +59,6 @@ float fps_shade[PERF_MEMORY] = { 0.0f };
 const char* shadowVert = R"(
 	#version 410 core
 	layout(location = 0) in vec3 point;
-	layout(location = 1) in vec2 uv;
-	layout(location = 2) in vec3 normal;
 	uniform mat4 depth_vp;
 	uniform mat4 model;
 	uniform mat4 transform;
@@ -78,7 +76,6 @@ const char* mainVert = R"(
 	#version 410 core
 	layout(location = 0) in vec3 point;
 	layout(location = 1) in vec2 uv;
-	layout(location = 2) in vec3 normal;
 	out vec2 vUv;
 	out vec4 shadowCoord;
 	uniform mat4 transform;
@@ -448,7 +445,7 @@ void render_imgui() {
 
 	ImGui::BeginMainMenuBar();
 	if (ImGui::BeginMenu("Drive")) {
-		if (ImGui::MenuItem("Performance Window", NULL, showPerformance)) showPerformance = !showPerformance;
+		if (ImGui::MenuItem("Performance Window", "CTRL + P", showPerformance)) showPerformance = !showPerformance;
 		if (ImGui::MenuItem("Quit", "CTRL + Q", false)) glfwSetWindowShouldClose(window, GLFW_TRUE);
 		ImGui::EndMenu();
 	}
