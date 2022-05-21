@@ -35,7 +35,7 @@ struct dMesh {
     GLuint iBuffer = 0;
     GLuint texture = 0;
     ObjData objData;
-    vector<vec3> instance_positions;
+    vector<mat4> instance_transforms;
     dMesh() { };
     dMesh(vector<vec3> points, vector<vec2> uvs, vector<vec3> normals, vector<int3> indices, string texFilename, bool texMipmap = true) {
         objData.points = points;
@@ -102,11 +102,11 @@ struct dMesh {
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
-    void setupInstances(vector<vec3> positions) {
+    void setupInstances(vector<mat4> transforms) {
         // Clean up previous VArray/VBuffer
         if (instancedVArray) glDeleteVertexArrays(1, &instancedVArray);
         if (instancedVBuffer) glDeleteBuffers(1, &instancedVBuffer);
-        instance_positions = positions;
+        instance_transforms = transforms;
         size_t pSize = objData.points.size() * sizeof(vec3);
         size_t uSize = objData.uvs.size() * sizeof(vec2);
         glGenVertexArrays(1, &instancedVArray);
@@ -120,10 +120,12 @@ struct dMesh {
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(pSize + uSize));
         glGenBuffers(1, &instancedVBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, instancedVBuffer);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(positions.size() * sizeof(vec3)), positions.data(), GL_STATIC_DRAW);
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 0, 0);
-        glVertexAttribDivisor(3, 1);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(transforms.size() * sizeof(mat4)), transforms.data(), GL_STATIC_DRAW);
+        for (int i = 0; i < 4; i++) {
+            glEnableVertexAttribArray(i + 3);
+            glVertexAttribPointer(i + 3, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(vec4), (GLvoid*)(i * sizeof(vec4)));
+            glVertexAttribDivisor(i + 3, 1);
+        }
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -131,14 +133,15 @@ struct dMesh {
         glDisableVertexAttribArray(0);
         glDisableVertexAttribArray(1);
         glDisableVertexAttribArray(2);
-        glDisableVertexAttribArray(3);
+        for (int i = 0; i < 4; i++)
+            glDisableVertexAttribArray(i + 3);
 
     }
     void renderInstanced() {
         glBindVertexArray(instancedVArray);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
-        glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)(objData.indices.size() * sizeof(int3)), GL_UNSIGNED_INT, 0, (int)instance_positions.size());
+        glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)(objData.indices.size() * sizeof(int3)), GL_UNSIGNED_INT, 0, (int)instance_transforms.size());
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }

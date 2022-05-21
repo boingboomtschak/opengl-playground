@@ -95,7 +95,7 @@ const char* mainVertInstanced = R"(
     #version 410 core
     layout (location = 0) in vec3 point;
     layout (location = 1) in vec2 uv;
-    layout (location = 3) in vec3 instance_pos;
+    layout (location = 3) in mat4 transform;
     out vec2 vUv;
     out vec4 shadowCoord;
     uniform mat4 model;
@@ -103,12 +103,6 @@ const char* mainVertInstanced = R"(
     uniform mat4 persp;
     uniform mat4 depth_vp;
     void main() {
-        mat4 transform = mat4(
-            1, 0, 0, instance_pos.x,
-            0, 1, 0, instance_pos.y,
-            0, 0, 1, instance_pos.z,
-            0, 0, 0, 1
-        );
         shadowCoord = depth_vp * transform * model * vec4(point, 1);
         vUv = uv;
         gl_Position = persp * view * transform * model * vec4(point, 1);
@@ -230,25 +224,24 @@ vector<vec3> large_tree_positions = {
 	{-0.75, 0, 0.3}
 };
 dMesh grass_mesh;
-GLuint grass_position_buffer = 0;
-vector<vec3> grass_positions = {
-	{7.79, 0, -5.38}, {5.27, 0, -8.41}, {-6.32, 0, -8.58}, {-9.40, 0, -5.62}, 
-	{-9.49, 0, 5.47}, {-6.46, 0, 8.56}, {4.59, 0, 9.61}, {7.51, 0, 6.12},
-	{12.07, 0, 5.49}, {15.67, 0, 5.87}, {20.84, 0, 5.78}, {23.66, 0, 10.43},
-	{16.71, 0, 11.87}, {-7.01, 0, 17.79}, {-7.03, 0, 27.66}, {-7.15, 0, 37.66},
-	{-18.52, 0, 41.08}, {-21.48, 0, 34.07}, {-20.76, 0, 22.88}, {-30.34, 0, 15.04},
-	{-36.73, 0, 14.27}, {-43.83, 0, 14.90}, {-44.92, 0, 9.24}, {-35.86, 0, -6.22},
-	{-25.08, 0, -8.68}, {-14.91, 0, -15.59}, {-10.73, 0, -23.47}, {-11.57, 0, -30.97},
-	{-20.33, 0, -33.76}, {-31.8, 0, -28.42}, {13.06, 0, -5.47}, {20.72, 0, -5.45}, 
-	{31.65, 0, -4.70}, {35.97, 0, -33.82}, {25.40, 0, -36.43}, {9.04, 0, 8.93},
-	{7.82, 0, -36.36}, {5.39, 0, -23.72}, {-9.14, 0, -11.88}, {-20.57, 0, -12.46}, 
-	{-32.20, 0, -20.17}, {-20.66, 0, -26.84}, {4.43, 0, -47.64}, {3.93, 0, -53.39}, 
-	{0.33, 0, -57.04}, {-7.27, 0, -51.45}, {-10.98, 0, -48.05}, {16.12, 0, -50.30}, 
-	{30.95, 0, -49.04}, {45.22, 0, -46.89}, {49.36, 0, -38.55}, {50.14, 0, -25.47}, 
-	{51.44, 0, -17.93}, {48.32, 0, -10.58}, {52.20, 0, -5.34}, {55.19, 0, 2.71}, 
-	{53.23, 0, 10.13}, {48.65, 0, 19.89}, {53.20, 0, 29.25}, {52.94, 0, 39.64}, 
-	{40.97, 0, 53.80}, {33.35, 0, 55.97}, {22.45, 0, 55.02}, {12.37, 0, 52.92}, 
-	{4.89, 0, 51.58}, {7.12, 0, 44.37}, {8.70, 0, 35.15}, {8.79, 0, 15.86}
+vector<mat4> grass_instance_transforms = {
+	Translate(7.79, 0, -5.38), Translate(5.27, 0, -8.41), Translate(-6.32, 0, -8.58), Translate(-9.40, 0, -5.62), 
+	Translate(-9.49, 0, 5.47), Translate(-6.46, 0, 8.56), Translate(4.59, 0, 9.61), Translate(7.51, 0, 6.12),
+	Translate(12.07, 0, 5.49), Translate(15.67, 0, 5.87), Translate(20.84, 0, 5.78), Translate(23.66, 0, 10.43),
+	Translate(16.71, 0, 11.87), Translate(-7.01, 0, 17.79), Translate(-7.03, 0, 27.66), Translate(-7.15, 0, 37.66),
+	Translate(-18.52, 0, 41.08), Translate(-21.48, 0, 34.07), Translate(-20.76, 0, 22.88), Translate(-30.34, 0, 15.04),
+	Translate(-36.73, 0, 14.27), Translate(-43.83, 0, 14.90), Translate(-44.92, 0, 9.24), Translate(-35.86, 0, -6.22),
+	Translate(-25.08, 0, -8.68), Translate(-14.91, 0, -15.59), Translate(-10.73, 0, -23.47), Translate(-11.57, 0, -30.97),
+	Translate(-20.33, 0, -33.76), Translate(-31.8, 0, -28.42), Translate(13.06, 0, -5.47), Translate(20.72, 0, -5.45), 
+	Translate(31.65, 0, -4.70), Translate(35.97, 0, -33.82), Translate(25.40, 0, -36.43), Translate(9.04, 0, 8.93),
+	Translate(7.82, 0, -36.36), Translate(5.39, 0, -23.72), Translate(-9.14, 0, -11.88), Translate(-20.57, 0, -12.46), 
+	Translate(-32.20, 0, -20.17), Translate(-20.66, 0, -26.84), Translate(4.43, 0, -47.64), Translate(3.93, 0, -53.39), 
+	Translate(0.33, 0, -57.04), Translate(-7.27, 0, -51.45), Translate(-10.98, 0, -48.05), Translate(16.12, 0, -50.30), 
+	Translate(30.95, 0, -49.04), Translate(45.22, 0, -46.89), Translate(49.36, 0, -38.55), Translate(50.14, 0, -25.47), 
+	Translate(51.44, 0, -17.93), Translate(48.32, 0, -10.58), Translate(52.20, 0, -5.34), Translate(55.19, 0, 2.71), 
+	Translate(53.23, 0, 10.13), Translate(48.65, 0, 19.89), Translate(53.20, 0, 29.25), Translate(52.94, 0, 39.64), 
+	Translate(40.97, 0, 53.80), Translate(33.35, 0, 55.97), Translate(22.45, 0, 55.02), Translate(12.37, 0, 52.92), 
+	Translate(4.89, 0, 51.58), Translate(7.12, 0, 44.37), Translate(8.70, 0, 35.15), Translate(8.79, 0, 15.86)
 };
 
 struct Car {
@@ -560,7 +553,7 @@ void setup() {
 	mat4 grass_transform;
 	grass_mesh = dMesh("objects/grass.obj", "textures/grass.png", grass_transform);
     // Setup instance render buffers
-    grass_mesh.setupInstances(grass_positions);
+    grass_mesh.setupInstances(grass_instance_transforms);
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
 		dSkybox skybox;
@@ -591,9 +584,6 @@ void cleanup() {
     // Cleanup shadow map resources
 	glDeleteFramebuffers(1, &shadowFramebuffer);
 	glDeleteTextures(1, &shadowTexture);
-    // Cleanup instance render buffers
-    glDeleteBuffers(1, &grass_position_buffer);
-    
 }
 
 void draw() {
@@ -616,10 +606,6 @@ void draw() {
 		large_tree_mesh.render();
 	}
 	SetUniform(shadowProgram, "model", grass_mesh.model);
-	for (vec3 pos : grass_positions) {
-		SetUniform(shadowProgram, "transform", Translate(pos));
-		grass_mesh.render();
-	}
 	SetUniform(shadowProgram, "model", car.mesh.model);
 	SetUniform(shadowProgram, "transform", car.transform());
 	car.mesh.render();
@@ -672,12 +658,12 @@ void draw() {
     glUseProgram(instancedProgram);
     SetUniform(instancedProgram, "txtr", 0);
     SetUniform(instancedProgram, "shadow", 1);
-    SetUniform(instancedProgram, "model", grass_mesh.model);
     SetUniform(instancedProgram, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
     SetUniform(instancedProgram, "edgeSamples", shadowEdgeSamples);
     SetUniform(instancedProgram, "depth_vp", depthVP);
     SetUniform(instancedProgram, "persp", camera.persp);
     SetUniform(instancedProgram, "view", camera.view);
+	SetUniform(instancedProgram, "model", grass_mesh.model);
     grass_mesh.renderInstanced();
 	//dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
 	render_imgui();
