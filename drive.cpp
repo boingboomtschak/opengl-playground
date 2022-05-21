@@ -43,6 +43,7 @@ float dt;
 
 const int SHADOW_DIM = 16384;
 GLuint mainProgram = 0;
+GLuint instancedProgram = 0;
 GLuint shadowProgram = 0;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
@@ -78,8 +79,8 @@ const char* mainVert = R"(
 	layout(location = 1) in vec2 uv;
 	out vec2 vUv;
 	out vec4 shadowCoord;
+    uniform mat4 model;
 	uniform mat4 transform;
-	uniform mat4 model;
 	uniform mat4 view;
 	uniform mat4 persp;
 	uniform mat4 depth_vp;
@@ -88,6 +89,30 @@ const char* mainVert = R"(
 		vUv = uv;
 		gl_Position = persp * view * transform * model * vec4(point, 1);
 	}
+)";
+
+const char* mainVertInstanced = R"(
+    #version 410 core
+    layout (location = 0) in vec3 point;
+    layout (location = 1) in vec2 uv;
+    layout (location = 3) in vec3 instance_pos;
+    out vec2 vUv;
+    out vec4 shadowCoord;
+    uniform mat4 model;
+    uniform mat4 view;
+    uniform mat4 persp;
+    uniform mat4 depth_vp;
+    void main() {
+        mat4 transform = mat4(
+            1, 0, 0, instance_pos.x,
+            0, 1, 0, instance_pos.y,
+            0, 0, 1, instance_pos.z,
+            0, 0, 0, 1
+        );
+        shadowCoord = depth_vp * transform * model * vec4(point, 1);
+        vUv = uv;
+        gl_Position = persp * view * transform * model * vec4(point, 1);
+    }
 )";
 
 const char* mainFrag = R"(
@@ -205,6 +230,7 @@ vector<vec3> large_tree_positions = {
 	{-0.75, 0, 0.3}
 };
 dMesh grass_mesh;
+GLuint grass_position_buffer = 0;
 vector<vec3> grass_positions = {
 	{7.79, 0, -5.38}, {5.27, 0, -8.41}, {-6.32, 0, -8.58}, {-9.40, 0, -5.62}, 
 	{-9.49, 0, 5.47}, {-6.46, 0, 8.56}, {4.59, 0, 9.61}, {7.51, 0, 6.12},
@@ -499,6 +525,8 @@ void setup() {
 	// Compile programs
 	if (!(mainProgram = LinkProgramViaCode(&mainVert, &mainFrag)))
 		throw runtime_error("Failed to compile main render program!");
+    if (!(instancedProgram = LinkProgramViaCode(&mainVertInstanced, &mainFrag)))
+        throw runtime_error("Failed to compile instanced render program");
 	if (!(shadowProgram = LinkProgramViaCode(&shadowVert, &shadowFrag)))
 		throw runtime_error("Failed to compile shadow render program!");
     // Set up shadowmap resources
@@ -531,6 +559,8 @@ void setup() {
 	large_tree_mesh = dMesh("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
 	mat4 grass_transform;
 	grass_mesh = dMesh("objects/grass.obj", "textures/grass.png", grass_transform);
+    // Setup instance render buffers
+    grass_mesh.setupInstances(grass_positions);
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
 		dSkybox skybox;
@@ -554,11 +584,16 @@ void cleanup() {
 	floor_mesh.cleanup();
 	large_tree_mesh.cleanup();
 	grass_mesh.cleanup();
+    // Cleanup skyboxes / particle system
 	for (dSkybox skybox : skyboxes)
 		skybox.cleanup();
     particleSystem.cleanup();
+    // Cleanup shadow map resources
 	glDeleteFramebuffers(1, &shadowFramebuffer);
 	glDeleteTextures(1, &shadowTexture);
+    // Cleanup instance render buffers
+    glDeleteBuffers(1, &grass_position_buffer);
+    
 }
 
 void draw() {
@@ -628,16 +663,22 @@ void draw() {
 		SetUniform(mainProgram, "transform", Translate(pos));
 		large_tree_mesh.render();
 	}
-	SetUniform(mainProgram, "model", grass_mesh.model);
-	for (vec3 pos : grass_positions) {
-		SetUniform(mainProgram, "transform", Translate(pos));
-		grass_mesh.render();
-	}
 	SetUniform(mainProgram, "model", car.mesh.model);
 	SetUniform(mainProgram, "transform", car.transform());
 	car.mesh.render();
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
+    // Instanced renders
+    glUseProgram(instancedProgram);
+    SetUniform(instancedProgram, "txtr", 0);
+    SetUniform(instancedProgram, "shadow", 1);
+    SetUniform(instancedProgram, "model", grass_mesh.model);
+    SetUniform(instancedProgram, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
+    SetUniform(instancedProgram, "edgeSamples", shadowEdgeSamples);
+    SetUniform(instancedProgram, "depth_vp", depthVP);
+    SetUniform(instancedProgram, "persp", camera.persp);
+    SetUniform(instancedProgram, "view", camera.view);
+    grass_mesh.renderInstanced();
 	//dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
 	render_imgui();
 	glFlush();

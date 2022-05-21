@@ -29,10 +29,13 @@ Render passes using it should:
 struct dMesh {
     mat4 model = mat4();
     GLuint vArray = 0;
+    GLuint instancedVArray = 0;
+    GLuint instancedVBuffer = 0;
     GLuint vBuffer = 0;
     GLuint iBuffer = 0;
     GLuint texture = 0;
     ObjData objData;
+    vector<vec3> instance_positions;
     dMesh() { };
     dMesh(vector<vec3> points, vector<vec2> uvs, vector<vec3> normals, vector<int3> indices, string texFilename, bool texMipmap = true) {
         objData.points = points;
@@ -88,12 +91,54 @@ struct dMesh {
         if (vBuffer) glDeleteBuffers(1, &vBuffer);
         if (iBuffer) glDeleteBuffers(1, &iBuffer);
         if (texture) glDeleteTextures(1, &texture);
+        if (instancedVArray) glDeleteVertexArrays(1, &instancedVArray);
+        if (instancedVBuffer) glDeleteBuffers(1, &instancedVBuffer);
     }
     void render() {
         glBindVertexArray(vArray);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
         glDrawElements(GL_TRIANGLES, (GLsizei)(objData.indices.size() * sizeof(int3)), GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    void setupInstances(vector<vec3> positions) {
+        // Clean up previous VArray/VBuffer
+        if (instancedVArray) glDeleteVertexArrays(1, &instancedVArray);
+        if (instancedVBuffer) glDeleteBuffers(1, &instancedVBuffer);
+        instance_positions = positions;
+        size_t pSize = objData.points.size() * sizeof(vec3);
+        size_t uSize = objData.uvs.size() * sizeof(vec2);
+        glGenVertexArrays(1, &instancedVArray);
+        glBindVertexArray(instancedVArray);
+        glBindBuffer(GL_ARRAY_BUFFER, vBuffer);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(pSize));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)(pSize + uSize));
+        glGenBuffers(1, &instancedVBuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, instancedVBuffer);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(positions.size() * sizeof(vec3)), positions.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 0, 0);
+        glVertexAttribDivisor(3, 1);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iBuffer);
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
+        glDisableVertexAttribArray(3);
+
+    }
+    void renderInstanced() {
+        glBindVertexArray(instancedVArray);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)(objData.indices.size() * sizeof(int3)), GL_UNSIGNED_INT, 0, (int)instance_positions.size());
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
