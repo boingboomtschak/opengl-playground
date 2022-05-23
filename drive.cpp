@@ -43,8 +43,9 @@ float dt;
 
 const int SHADOW_DIM = 16384;
 GLuint mainProgram = 0;
-GLuint instancedProgram = 0;
+GLuint mainProgramInstanced = 0;
 GLuint shadowProgram = 0;
+GLuint shadowProgramInstanced = 0;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
 
@@ -57,12 +58,24 @@ static bool showPerformance = false;
 float fps_x[PERF_MEMORY] = { 0.0f };
 float fps_y[PERF_MEMORY] = { 0.0f };
 float fps_shade[PERF_MEMORY] = { 0.0f };
+
 const char* shadowVert = R"(
 	#version 410 core
 	layout(location = 0) in vec3 point;
 	uniform mat4 depth_vp;
 	uniform mat4 model;
 	uniform mat4 transform;
+	void main() {
+		gl_Position = depth_vp * transform * model * vec4(point, 1);
+	}
+)";
+
+const char* shadowVertInstanced = R"(
+	#version 410 core
+	layout(location = 0) in vec3 point;
+	layout(location = 3) in mat4 transform;
+	uniform mat4 depth_vp;
+	uniform mat4 model;
 	void main() {
 		gl_Position = depth_vp * transform * model * vec4(point, 1);
 	}
@@ -218,13 +231,33 @@ vector<vec2> floor_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
 vector<int3> floor_triangles = { {2, 1, 0}, {0, 3, 2} };
 
 dMesh large_tree_mesh;
-vector<vec3> large_tree_positions = {
-	{49, 0, 37}, {50, 0, 32}, {29, 0, 15}, {50, 0, 10},
-	{-10, 0, 32}, {-34, 0, 7}, {15, 0, -13}, {6, 0, -15},
-	{-0.75, 0, 0.3}
+vector<mat4> large_tree_instance_transforms = {
+	Translate(49.00, 0, 37.00), Translate(50.00, 0, 32.00), Translate(29.00, 0, 15.00), Translate(50.00, 0, 10.00),
+	Translate(-10.00, 0, 32.00), Translate(-34.00, 0, 7.00), Translate(15.00, 0, -13.00), Translate(6.00, 0, -15.00),
+	Translate(-0.75, 0, 0.3), Translate(-9.11, 0, -8.64), Translate(-16.16, 0, -12.58), Translate(-27.02, 0, -15.88), 
+	Translate(-32.39, 0, -7.18), Translate(-22.69, 0, -24.82), Translate(-15.40, 0, -31.95), Translate(-8.23, 0, -33.90), 
+	Translate(-7.48, 0, -48.32), Translate(7.70, 0, -34.07), Translate(49.83, 0, -22.92), Translate(54.68, 0, -30.48), 
+	Translate(52.80, 0, -38.50), Translate(46.54, 0, -49.25), Translate(36.14, 0, -50.60), Translate(26.13, 0, -51.73), 
+	Translate(10.83, 0, -51.97), Translate(-13.78, 0, -33.34), Translate(-25.02, 0, -24.78), Translate(-31.62, 0, -16.71), 
+	Translate(-29.06, 0, -6.59), Translate(7.55, 0, 10.67), Translate(25.84, 0, 21.15), Translate(23.49, 0, 34.07), 
+	Translate(7.52, 0, 46.78), Translate(-2.10, 0, 54.42), Translate(-12.51, 0, 54.03), Translate(-21.23, 0, 54.79), 
+	Translate(-32.39, 0, 54.86), Translate(-37.58, 0, 46.49), Translate(-36.75, 0, 35.87), Translate(-41.17, 0, 30.20), 
+	Translate(-52.15, 0, 31.90), Translate(-57.76, 0, 14.15), Translate(-58.13, 0, 3.82), Translate(-58.32, 0, -4.81), 
+	Translate(-58.50, 0, -15.75), Translate(-58.31, 0, -26.44), Translate(-58.05, 0, -38.86), Translate(-57.40, 0, -49.04),
+	Translate(-34.08, 0, -27.36), Translate(-35.94, 0, -16.43), Translate(-31.61, 0, -12.72), Translate(-22.11, 0, -10.64), 
+	Translate(-11.82, 0, -11.64), Translate(-10.84, 0, -21.56), Translate(-17.93, 0, -28.87), Translate(-25.40, 0, -33.24), 
+	Translate(-34.90, 0, -30.52), Translate(-8.35, 0, 9.46), Translate(-7.34, 0, 21.43), Translate(-7.45, 0, 35.74), 
+	Translate(-16.61, 0, 39.66), Translate(7.60, 0, 16.11), Translate(12.85, 0, 11.31), Translate(23.16, 0, 8.94), 
+	Translate(23.09, 0, 17.21), Translate(33.01, 0, 7.78), Translate(31.65, 0, 19.08), Translate(30.85, 0, 25.40), 
+	Translate(35.05, 0, 33.10), Translate(29.93, 0, 34.80), Translate(22.32, 0, 41.41), Translate(6.87, 0, 36.39), 
+	Translate(6.92, 0, 55.30), Translate(12.63, 0, 57.65), Translate(22.51, 0, 57.53), Translate(29.38, 0, 54.41), 
+	Translate(41.66, 0, 56.19), Translate(51.12, 0, 53.26), Translate(55.26, 0, 46.08), Translate(50.39, 0, 42.98), 
+	Translate(53.33, 0, 37.18), Translate(56.60, 0, 29.23), Translate(50.68, 0, 23.18), Translate(47.43, 0, 17.28), 
+	Translate(53.80, 0, 13.17), Translate(57.79, 0, 2.03), Translate(53.03, 0, -7.96), Translate(54.85, 0, -20.03), 
+	Translate(53.67, 0, -44.20), Translate(35.25, 0, -35.85),
 };
 dMesh grass_mesh;
-vector<mat4> grass_instance_transforms = {
+vector<mat4> grass_instance_transforms {
 	Translate(7.79, 0, -5.38), Translate(5.27, 0, -8.41), Translate(-6.32, 0, -8.58), Translate(-9.40, 0, -5.62), 
 	Translate(-9.49, 0, 5.47), Translate(-6.46, 0, 8.56), Translate(4.59, 0, 9.61), Translate(7.51, 0, 6.12),
 	Translate(12.07, 0, 5.49), Translate(15.67, 0, 5.87), Translate(20.84, 0, 5.78), Translate(23.66, 0, 10.43),
@@ -241,7 +274,51 @@ vector<mat4> grass_instance_transforms = {
 	Translate(51.44, 0, -17.93), Translate(48.32, 0, -10.58), Translate(52.20, 0, -5.34), Translate(55.19, 0, 2.71), 
 	Translate(53.23, 0, 10.13), Translate(48.65, 0, 19.89), Translate(53.20, 0, 29.25), Translate(52.94, 0, 39.64), 
 	Translate(40.97, 0, 53.80), Translate(33.35, 0, 55.97), Translate(22.45, 0, 55.02), Translate(12.37, 0, 52.92), 
-	Translate(4.89, 0, 51.58), Translate(7.12, 0, 44.37), Translate(8.70, 0, 35.15), Translate(8.79, 0, 15.86)
+	Translate(4.89, 0, 51.58), Translate(7.12, 0, 44.37), Translate(8.70, 0, 35.15), Translate(8.79, 0, 15.86), 
+	Translate(8.65, 0, -8.66), Translate(5.71, 0, -19.49), Translate(-7.94, 0, -18.39), Translate(-12.41, 0, -13.37), 
+	Translate(-18.98, 0, -6.11), Translate(-23.53, 0, -13.22), Translate(-18.43, 0, -21.01), Translate(-12.61, 0, -26.95), 
+	Translate(-20.56, 0, -31.51), Translate(-25.20, 0, -27.63), Translate(-26.66, 0, -18.66), Translate(-28.89, 0, -11.67), 
+	Translate(-35.18, 0, -10.46), Translate(-35.20, 0, -24.29), Translate(-42.69, 0, 6.82), Translate(-33.15, 0, 27.00), 
+	Translate(-33.92, 0, 33.73), Translate(-33.91, 0, 43.06), Translate(-33.89, 0, 49.01), Translate(-37.87, 0, 51.80), 
+	Translate(-41.86, 0, 46.81), Translate(-39.06, 0, 37.08), Translate(-37.24, 0, 30.39), Translate(-45.18, 0, 26.06), 
+	Translate(-52.10, 0, 28.20), Translate(-51.13, 0, 35.53), Translate(-48.92, 0, 42.02), Translate(-44.19, 0, 49.47), 
+	Translate(-48.15, 0, 51.39), Translate(-52.47, 0, 45.00), Translate(-19.89, 0, 37.80), Translate(-8.92, 0, 40.31), 
+	Translate(6.92, 0, 40.09), Translate(21.51, 0, 40.12), Translate(31.11, 0, 42.29), Translate(34.82, 0, 36.45), 
+	Translate(35.20, 0, 30.16), Translate(34.46, 0, 21.91), Translate(33.01, 0, 14.88), Translate(31.73, 0, 7.26), 
+	Translate(18.89, 0, 8.64), Translate(11.94, 0, 10.72), Translate(6.14, 0, 13.45), Translate(19.11, 0, 15.25), 
+	Translate(25.39, 0, 18.05), Translate(27.88, 0, 24.53), Translate(24.49, 0, 30.18), Translate(-15.33, 0, -9.27), 
+	Translate(-17.74, 0, -15.42), Translate(-21.91, 0, -19.81), Translate(-28.09, 0, -25.55), Translate(-35.06, 0, -18.19), 
+	Translate(-31.77, 0, -11.53), Translate(-17.96, 0, -8.67), Translate(-7.88, 0, -29.60), Translate(-14.56, 0, -29.49), 
+	Translate(-16.12, 0, -34.21), Translate(-21.71, 0, 28.06), Translate(6.18, 0, 37.26), Translate(7.01, 0, 49.03), 
+	Translate(10.97, 0, 55.62), Translate(17.51, 0, 56.45), Translate(49.75, 0, 49.19), Translate(53.50, 0, 33.92), 
+	Translate(49.00, 0, 25.35), Translate(53.92, 0, 22.33), Translate(49.92, 0, 17.05), Translate(53.79, 0, 16.88), 
+	Translate(56.55, 0, 13.86), Translate(56.15, 0, 8.20), Translate(50.05, 0, 6.49), Translate(33.86, 0, 10.72), 
+	Translate(26.73, 0, 12.74), Translate(23.75, 0, 14.55), Translate(29.74, 0, 18.33), Translate(28.37, 0, 7.24), 
+	Translate(34.98, 0, -7.36), Translate(26.29, 0, -5.06), Translate(48.05, 0, -21.12), Translate(52.87, 0, -23.11),
+	Translate(54.21, 0, -27.11), Translate(49.96, 0, -33.09), Translate(49.25, 0, -43.09), Translate(49.27, 0, -49.34), 
+	Translate(43.54, 0, -53.94), Translate(34.86, 0, -55.65), Translate(31.18, 0, -54.53), Translate(23.49, 0, -47.76), 
+	Translate(19.93, 0, -52.79), Translate(16.68, 0, -57.96), Translate(11.80, 0, -57.26), Translate(9.42, 0, -53.46),
+	Translate(10.55, 0, -47.26), Translate(16.66, 0, -47.86), Translate(7.30, 0, -56.81), Translate(0.79, 0, -55.33), 
+	Translate(-6.02, 0, -54.50), Translate(-11.82, 0, -57.15), Translate(-22.68, 0, -58.74), Translate(-30.38, 0, -57.70),
+	Translate(-40.51, 0, -57.49), Translate(-53.80, 0, -57.32), Translate(-57.84, 0, -53.29), Translate(-58.09, 0, -44.97), 
+	Translate(-58.10, 0, -32.31), Translate(-57.77, 0, -20.81), Translate(-57.48, 0, -11.24), Translate(-57.76, 0, -0.54), 
+	Translate(-58.23, 0, 8.00), Translate(-57.65, 0, 20.25), Translate(-56.34, 0, 27.91), Translate(-12.13, 0, -7.25), 
+	Translate(-10.14, 0, -17.27), Translate(-13.09, 0, -21.82), Translate(-17.47, 0, -25.97), Translate(-23.17, 0, -31.02), 
+	Translate(-31.75, 0, -32.83), Translate(-31.41, 0, -24.12), Translate(-25.43, 0, -21.01), Translate(-19.74, 0, -23.85), 
+	Translate(-16.54, 0, -25.51), Translate(-7.47, 0, -25.94), Translate(-9.09, 0, -20.63), Translate(-20.19, 0, -17.30),
+	Translate(-30.55, 0, -8.13), Translate(-24.77, 0, -6.63), Translate(-13.41, 0, -7.41), Translate(12.13, 0, -7.70), 
+	Translate(48.80, 0, -29.86), Translate(54.54, 0, -13.45), Translate(55.77, 0, -6.18), Translate(57.66, 0, -15.36), 
+	Translate(54.96, 0, -34.84), Translate(52.84, 0, -46.37), Translate(50.84, 0, -54.69), Translate(37.50, 0, -53.79), 
+	Translate(30.17, 0, -50.93), Translate(25.60, 0, -55.13), Translate(20.31, 0, -56.20), Translate(15.10, 0, -53.24), 
+	Translate(10.99, 0, -50.25), Translate(-0.23, 0, -53.39), Translate(-4.14, 0, -56.11), Translate(-11.35, 0, -52.83), 
+	Translate(-33.86, 0, -35.34), Translate(-36.90, 0, -22.12), Translate(-37.35, 0, -10.74), Translate(-21.66, 0, 24.40), 
+	Translate(-21.72, 0, 39.58), Translate(-31.84, 0, 51.97), Translate(-36.49, 0, 54.49), Translate(-34.69, 0, 56.44), 
+	Translate(-27.99, 0, 54.64), Translate(-20.92, 0, 53.10), Translate(-16.84, 0, 56.33), Translate(-12.06, 0, 57.21), 
+	Translate(-9.39, 0, 53.56), Translate(-4.92, 0, 54.34), Translate(2.20, 0, 56.54), Translate(8.00, 0, 52.92), 
+	Translate(9.49, 0, 57.30), Translate(15.74, 0, 54.92), Translate(24.05, 0, 41.10), Translate(25.94, 0, 36.21), 
+	Translate(27.32, 0, 32.39), Translate(29.15, 0, 27.36), Translate(32.31, 0, 21.46), Translate(35.16, 0, 24.48), 
+	Translate(32.21, 0, 32.18), Translate(32.75, 0, 36.64), Translate(30.44, 0, 40.23), Translate(23.81, 0, 41.49), 
+	Translate(19.42, 0, 37.20)
 };
 
 struct Car {
@@ -274,11 +351,11 @@ struct Car {
 		else if (pos.x < -59.5) { pos.x = -59.5; }
 		else if (pos.z > 59.5) { pos.z = 59.5; }
 		else if (pos.z < -59.5) { pos.z = -59.5; }
-		for (vec3 tree_pos : large_tree_positions) {
+		/*for (vec3 tree_pos : large_tree_positions) {
 			float d = dist(pos, tree_pos);
 			if (d < 1.5) vel *= 0.5;
 			//if (d < 1.0) vel = (pos - tree_pos); hard collision with tree
-		}
+		}*/
 	}
 	void update(float dt) {
 		// Weight update by time delta for consistent effect of updates
@@ -350,7 +427,7 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
         if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
             showPerformance = !showPerformance;
         } else {
-            printf("{%.2f, %.0f, %.2f}, ", car.pos.x, car.pos.y, car.pos.z);
+            printf("Translate(%.2f, %.0f, %.2f), ", car.pos.x, car.pos.y, car.pos.z);
         }
     }
     if (key == GLFW_KEY_1 && action == GLFW_PRESS)
@@ -518,10 +595,12 @@ void setup() {
 	// Compile programs
 	if (!(mainProgram = LinkProgramViaCode(&mainVert, &mainFrag)))
 		throw runtime_error("Failed to compile main render program!");
-    if (!(instancedProgram = LinkProgramViaCode(&mainVertInstanced, &mainFrag)))
-        throw runtime_error("Failed to compile instanced render program");
+    if (!(mainProgramInstanced = LinkProgramViaCode(&mainVertInstanced, &mainFrag)))
+        throw runtime_error("Failed to compile main instanced render program");
 	if (!(shadowProgram = LinkProgramViaCode(&shadowVert, &shadowFrag)))
 		throw runtime_error("Failed to compile shadow render program!");
+	if (!(shadowProgramInstanced = LinkProgramViaCode(&shadowVertInstanced, &shadowFrag)))
+		throw runtime_error("Failed to compile shadow instanced render program!");
     // Set up shadowmap resources
     glGenFramebuffers(1, &shadowFramebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
@@ -553,6 +632,7 @@ void setup() {
 	mat4 grass_transform;
 	grass_mesh = dMesh("objects/grass.obj", "textures/grass.png", grass_transform);
     // Setup instance render buffers
+	large_tree_mesh.setupInstances(large_tree_instance_transforms);
     grass_mesh.setupInstances(grass_instance_transforms);
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
@@ -600,15 +680,15 @@ void draw() {
 	SetUniform(shadowProgram, "model", floor_mesh.model);
 	SetUniform(shadowProgram, "transform", Scale(60));
 	floor_mesh.render();
-	SetUniform(shadowProgram, "model", large_tree_mesh.model);
-	for (vec3 pos : large_tree_positions) {
-		SetUniform(shadowProgram, "transform", Translate(pos));
-		large_tree_mesh.render();
-	}
-	SetUniform(shadowProgram, "model", grass_mesh.model);
 	SetUniform(shadowProgram, "model", car.mesh.model);
 	SetUniform(shadowProgram, "transform", car.transform());
 	car.mesh.render();
+	glUseProgram(shadowProgramInstanced);
+	SetUniform(shadowProgramInstanced, "depth_vp", depthVP);
+	SetUniform(shadowProgramInstanced, "model", large_tree_mesh.model);
+	large_tree_mesh.renderInstanced();
+	SetUniform(shadowProgramInstanced, "model", grass_mesh.model);
+	grass_mesh.renderInstanced();
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, win_width, win_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
@@ -644,26 +724,23 @@ void draw() {
 	SetUniform(mainProgram, "model", floor_mesh.model);
 	SetUniform(mainProgram, "transform", Scale(60));
 	floor_mesh.render();
-	SetUniform(mainProgram, "model", large_tree_mesh.model);
-	for (vec3 pos : large_tree_positions) {
-		SetUniform(mainProgram, "transform", Translate(pos));
-		large_tree_mesh.render();
-	}
 	SetUniform(mainProgram, "model", car.mesh.model);
 	SetUniform(mainProgram, "transform", car.transform());
 	car.mesh.render();
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
     // Instanced renders
-    glUseProgram(instancedProgram);
-    SetUniform(instancedProgram, "txtr", 0);
-    SetUniform(instancedProgram, "shadow", 1);
-    SetUniform(instancedProgram, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
-    SetUniform(instancedProgram, "edgeSamples", shadowEdgeSamples);
-    SetUniform(instancedProgram, "depth_vp", depthVP);
-    SetUniform(instancedProgram, "persp", camera.persp);
-    SetUniform(instancedProgram, "view", camera.view);
-	SetUniform(instancedProgram, "model", grass_mesh.model);
+    glUseProgram(mainProgramInstanced);
+    SetUniform(mainProgramInstanced, "txtr", 0);
+    SetUniform(mainProgramInstanced, "shadow", 1);
+    SetUniform(mainProgramInstanced, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
+    SetUniform(mainProgramInstanced, "edgeSamples", shadowEdgeSamples);
+    SetUniform(mainProgramInstanced, "depth_vp", depthVP);
+    SetUniform(mainProgramInstanced, "persp", camera.persp);
+    SetUniform(mainProgramInstanced, "view", camera.view);
+	SetUniform(mainProgramInstanced, "model", large_tree_mesh.model);
+	large_tree_mesh.renderInstanced();
+	SetUniform(mainProgramInstanced, "model", grass_mesh.model);
     grass_mesh.renderInstanced();
 	//dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
 	render_imgui();
