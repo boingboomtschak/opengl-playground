@@ -15,25 +15,8 @@ using std::unordered_map;
 using std::string;
 using std::runtime_error;
 
-enum dUniformType { UTint, UTfloat, UTvec2, UTvec3, UTvec4, UTint2, UTint3, UTint4, UTmat3, UTmat4 };
-
-struct dUniform {
-	dUniformType type;
-	int _int;
-	float _float;
-	vec2 _vec2;
-	vec3 _vec3;
-	vec4 _vec4;
-	int2 _int2;
-	int3 _int3;
-	int4 _int4;
-	mat3 _mat3;
-	mat4 _mat4;
-};
-
 struct dRenderPass {
 	GLuint program = 0;
-	unordered_map<string, dUniform> uniforms;
 	dRenderPass() { };
 	void loadShaders(const char** vertShaderSrc, const char** fragShaderSrc) {
 		// Compile shaders
@@ -60,69 +43,80 @@ struct dRenderPass {
 	void cleanup() {
 		if (program) glDeleteProgram(program);
 	}
-	GLint getId(string key) { };
-	void set(string key, int val) { 
-		dUniform u;
-		u.type = dUniformType::UTint;
-		u._int = val;
-		uniforms[key] = u;
+	bool active() {
+		GLint prog = 0;
+		glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
+		return (prog == program);
+	}
+	void use() {
+		if (!program) throw runtime_error("Render pass used before shaders loaded!");
+		if (!active()) glUseProgram(program);
+	}
+	void set(const char* key, GLuint val) {
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform1ui(id, val);
+	}
+	void set(const char* key, GLint val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform1i(id, val);
 	};
-	void set(string key, float val) { 
-		dUniform u;
-		u.type = dUniformType::UTfloat;
-		u._float = val;
-		uniforms[key] = u;
+	void set(const char* key, GLfloat val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform1f(id, val);
 	};
-	void set(string key, vec2 val) { 
-		dUniform u;
-		u.type = dUniformType::UTvec2;
-		u._vec2 = val;
-		uniforms[key] = u;
+	void set(const char* key, vec2 val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform2f(id, val.x, val.y);
 	};
-	void set(string key, vec3 val) { 
-		dUniform u;
-		u.type = dUniformType::UTvec3;
-		u._vec3 = val;
-		uniforms[key] = u;
+	void set(const char* key, vec3 val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform3f(id, val.x, val.y, val.z);
 	};
-	void set(string key, vec4 val) { 
-		dUniform u;
-		u.type = dUniformType::UTvec4;
-		u._vec4 = val;
-		uniforms[key] = u;
+	void set(const char* key, vec4 val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform4f(id, val.x, val.y, val.z, val.w);
 	};
-	void set(string key, int2 val) { 
-		dUniform u;
-		u.type = dUniformType::UTint2;
-		u._int2 = val;
-		uniforms[key] = u;
+	void set(const char* key, int2 val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform2i(id, val.i1, val.i2);
 	};
-	void set(string key, int3 val) { 
-		dUniform u;
-		u.type = dUniformType::UTint3;
-		u._int3 = val;
-		uniforms[key] = u;
+	void set(const char* key, int3 val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform3i(id, val.i1, val.i2, val.i3);
 	};
-	void set(string key, int4 val) { 
-		dUniform u;
-		u.type = dUniformType::UTint4;
-		u._int4 = val;
-		uniforms[key] = u;
+	void set(const char* key, int4 val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniform4i(id, val.i1, val.i2, val.i3, val.i4);
 	};
-	void set(string key, mat3 val) { 
-		dUniform u;
-		u.type = dUniformType::UTmat3;
-		u._mat3 = val;
-		uniforms[key] = u;
+	void set(const char* key, mat3 val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniformMatrix3fv(id, 1, true, &val[0][0]);
 	};
-	void set(string key, mat4 val) { 
-		dUniform u;
-		u.type = dUniformType::UTmat4;
-		u._mat4 = val;
-		uniforms[key] = u;
+	void set(const char* key, mat4 val) { 
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else glUniformMatrix4fv(id, 1, true, &val[0][0]);
 	};
-	void clear(string key) { uniforms.erase(key); };
-	void empty() { uniforms.erase(uniforms.begin(), uniforms.end()); }
 	void checkCompileStatus(GLuint shader, const char* shaderType) {
 		GLint res;
 		glGetShaderiv(shader, GL_COMPILE_STATUS, &res);

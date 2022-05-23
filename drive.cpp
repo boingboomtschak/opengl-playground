@@ -12,13 +12,13 @@
 #include <string>
 #include <stdexcept>
 #include "VecMat.h"
-#include "GLXtras.h"
 #include "GeomUtils.h"
+#include "dRenderPass.h"
+#include "dMesh.h"
+#include "dMisc.h"
 #include "dSkybox.h"
 #include "dParticles.h"
 #include "dTextureDebug.h"
-#include "dMesh.h"
-#include "dMisc.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
@@ -42,10 +42,10 @@ bool fullscreen = false;
 float dt;
 
 const int SHADOW_DIM = 16384;
-GLuint mainProgram = 0;
-GLuint mainProgramInstanced = 0;
-GLuint shadowProgram = 0;
-GLuint shadowProgramInstanced = 0;
+dRenderPass mainPass;
+dRenderPass mainPassInst;
+dRenderPass shadowPass;
+dRenderPass shadowPassInst;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
 
@@ -584,15 +584,11 @@ void setup() {
 	// Initialize GLFW callbacks
 	glfwSetKeyCallback(window, Keyboard);
 	glfwSetWindowSizeCallback(window, WindowResized);
-	// Compile programs
-	if (!(mainProgram = LinkProgramViaCode(&mainVert, &mainFrag)))
-		throw runtime_error("Failed to compile main render program!");
-    if (!(mainProgramInstanced = LinkProgramViaCode(&mainVertInstanced, &mainFrag)))
-        throw runtime_error("Failed to compile main instanced render program");
-	if (!(shadowProgram = LinkProgramViaCode(&shadowVert, &shadowFrag)))
-		throw runtime_error("Failed to compile shadow render program!");
-	if (!(shadowProgramInstanced = LinkProgramViaCode(&shadowVertInstanced, &shadowFrag)))
-		throw runtime_error("Failed to compile shadow instanced render program!");
+	// Load shaders into render passes
+	mainPass.loadShaders(&mainVert, &mainFrag);
+	mainPassInst.loadShaders(&mainVertInstanced, &mainFrag);
+	shadowPass.loadShaders(&shadowVert, &shadowFrag);
+	shadowPassInst.loadShaders(&shadowVertInstanced, &shadowFrag);
     // Set up shadowmap resources
     glGenFramebuffers(1, &shadowFramebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
@@ -672,36 +668,37 @@ void draw() {
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
 	glViewport(0, 0, SHADOW_DIM, SHADOW_DIM);
 	glClear(GL_DEPTH_BUFFER_BIT);
-	glUseProgram(shadowProgram);
 	glCullFace(GL_FRONT);
+	// Rendering shadow map
+	shadowPass.use();
 	mat4 depthProj = Orthographic(-80, 80, -80, 80, -20, 100);
 	mat4 depthView = LookAt(vec3(20, 30, 20), vec3(0, 0, 0), vec3(0, 1, 0));
 	mat4 depthVP = depthProj * depthView;
-	SetUniform(shadowProgram, "depth_vp", depthVP);
-	SetUniform(shadowProgram, "model", floor_mesh.model);
-	SetUniform(shadowProgram, "transform", Scale(60));
+	shadowPass.set("depth_vp", depthVP);
+	shadowPass.set("model", floor_mesh.model);
+	shadowPass.set("transform", Scale(60));
 	floor_mesh.render();
-	SetUniform(shadowProgram, "model", campfire_mesh.model);
-	SetUniform(shadowProgram, "transform", Translate(-16.62, 0, 11.89));
+	shadowPass.set("model", campfire_mesh.model);
+	shadowPass.set("transform", Translate(-16.62, 0, 11.89));
 	campfire_mesh.render();
-	SetUniform(shadowProgram, "model", sleeping_bag_mesh.model);
-	SetUniform(shadowProgram, "transform", Translate(-17.86, 0, 10.67) * RotateY(-40.0f));
+	shadowPass.set("model", sleeping_bag_mesh.model);
+	shadowPass.set("transform", Translate(-17.86, 0, 10.67) * RotateY(-40.0f));
 	sleeping_bag_mesh.render();
-	SetUniform(shadowProgram, "transform", Translate(-15.92, 0, 10.98) * RotateY(45.0f));
+	shadowPass.set("transform", Translate(-15.92, 0, 10.98) * RotateY(45.0f));
 	sleeping_bag_mesh.render();
-	SetUniform(shadowProgram, "model", car.mesh.model);
-	SetUniform(shadowProgram, "transform", car.transform());
+	shadowPass.set("model", car.mesh.model);
+	shadowPass.set("transform", car.transform());
 	car.mesh.render();
-	glUseProgram(shadowProgramInstanced);
-	SetUniform(shadowProgramInstanced, "depth_vp", depthVP);
-	SetUniform(shadowProgramInstanced, "model", large_tree_mesh.model);
+	// Instanced rendering shadow map
+	shadowPassInst.use();
+	shadowPassInst.set("depth_vp", depthVP);
+	shadowPassInst.set("model", large_tree_mesh.model);
 	large_tree_mesh.renderInstanced();
-	SetUniform(shadowProgramInstanced, "model", grass_mesh.model);
+	shadowPassInst.set("model", grass_mesh.model);
 	grass_mesh.renderInstanced();
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, win_width, win_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
-	glUseProgram(mainProgram);
 	glCullFace(GL_BACK);
 	// Draw scene as usual
     if (camera_loc == 1) { // Third person chase camera
@@ -721,41 +718,43 @@ void draw() {
         camera.up = vec3(0, 1, 0);
         camera.adjustFov(60);
     }
+	// Rendering main pass
+	mainPass.use();
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, shadowTexture);
-	SetUniform(mainProgram, "txtr", 0);
-	SetUniform(mainProgram, "shadow", 1);
-	SetUniform(mainProgram, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
-	SetUniform(mainProgram, "depth_vp", depthVP);
-	SetUniform(mainProgram, "persp", camera.persp);
-	SetUniform(mainProgram, "view", camera.view);
-	SetUniform(mainProgram, "model", floor_mesh.model);
-	SetUniform(mainProgram, "transform", Scale(60));
+	mainPass.set("txtr", 0);
+	mainPass.set("shadow", 1);
+	mainPass.set("lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
+	mainPass.set("depth_vp", depthVP);
+	mainPass.set("persp", camera.persp);
+	mainPass.set("view", camera.view);
+	mainPass.set("model", floor_mesh.model);
+	mainPass.set("transform", Scale(60));
 	floor_mesh.render();
-	SetUniform(mainProgram, "model", campfire_mesh.model);
-	SetUniform(mainProgram, "transform", Translate(-16.62, 0, 11.89));
+	mainPass.set("model", campfire_mesh.model);
+	mainPass.set("transform", Translate(-16.62, 0, 11.89));
 	campfire_mesh.render();
-	SetUniform(mainProgram, "model", sleeping_bag_mesh.model);
-	SetUniform(mainProgram, "transform", Translate(-17.86, 0, 10.67) * RotateY(-40.0f));
+	mainPass.set("model", sleeping_bag_mesh.model);
+	mainPass.set("transform", Translate(-17.86, 0, 10.67) * RotateY(-40.0f));
 	sleeping_bag_mesh.render();
-	SetUniform(mainProgram, "transform", Translate(-15.92, 0, 10.98) * RotateY(45.0f));
+	mainPass.set("transform", Translate(-15.92, 0, 10.98) * RotateY(45.0f));
 	sleeping_bag_mesh.render();
-	SetUniform(mainProgram, "model", car.mesh.model);
-	SetUniform(mainProgram, "transform", car.transform());
+	mainPass.set("model", car.mesh.model);
+	mainPass.set("transform", car.transform());
 	car.mesh.render();
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
-    // Instanced renders
-    glUseProgram(mainProgramInstanced);
-    SetUniform(mainProgramInstanced, "txtr", 0);
-    SetUniform(mainProgramInstanced, "shadow", 1);
-    SetUniform(mainProgramInstanced, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
-    SetUniform(mainProgramInstanced, "depth_vp", depthVP);
-    SetUniform(mainProgramInstanced, "persp", camera.persp);
-    SetUniform(mainProgramInstanced, "view", camera.view);
-	SetUniform(mainProgramInstanced, "model", large_tree_mesh.model);
+    // Rendering instanced main pass
+	mainPassInst.use();
+	mainPassInst.set("txtr", 0);
+	mainPassInst.set("shadow", 1);
+	mainPassInst.set("lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
+	mainPassInst.set("depth_vp", depthVP);
+	mainPassInst.set("persp", camera.persp);
+	mainPassInst.set("view", camera.view);
+	mainPassInst.set("model", large_tree_mesh.model);
 	large_tree_mesh.renderInstanced();
-	SetUniform(mainProgramInstanced, "model", grass_mesh.model);
+	mainPassInst.set("model", grass_mesh.model);
     grass_mesh.renderInstanced();
 	//dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
 	render_imgui();
