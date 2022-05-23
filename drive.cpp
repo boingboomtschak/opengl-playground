@@ -51,7 +51,6 @@ GLuint shadowTexture = 0;
 
 float lightColor[3] = { 1.0f, 1.0f, 1.0f };
 float init_time;
-int shadowEdgeSamples = 16;
 
 const int PERF_MEMORY = 50;
 static bool showPerformance = false;
@@ -131,8 +130,7 @@ const char* mainFrag = R"(
 	uniform sampler2DShadow shadow;
 	uniform vec4 ambient = vec4(vec3(0.1), 1);
 	uniform vec3 lightColor;
-	uniform int edgeSamples;
-	vec2 uniformSamples[32] = vec2[](vec2(0.49338352, -0.58302237), vec2(-0.39376479, 0.12189280), vec2(-0.38876976, 0.39560871), vec2(-0.82853213, 0.29121478), vec2(-0.62251564, 0.27426500), vec2(0.44906493, 0.72971920), vec2(0.99295605, 0.02762058), vec2(-0.61054051, -0.74474791), vec2(-0.49073490, 0.09812672), vec2(0.64145907, -0.23052487), vec2(-0.47168601, 0.81892203), vec2(0.95110052, 0.97483373), vec2(0.84048903, 0.82753596), vec2(-0.94147225, 0.42333745), vec2(-0.97706586, 0.22633662), vec2(0.00977269, 0.02378330), vec2(-0.21250551, 0.39536213), vec2(0.46426639, 0.17288661), vec2(-0.44197788, 0.33506576), vec2(0.80805167, -0.29359674), vec2(-0.66379370, 0.04307460), vec2(0.26607188, 0.79704354), vec2(0.20652568, 0.81991369), vec2(0.64959186, -0.64564514), vec2(0.93534138, 0.83045920), vec2(0.31952140, 0.95451090), vec2(-0.85996893, 0.29045370), vec2(-0.33230688, -0.34582716), vec2(0.87055498, 0.64248681), vec2(-0.19631182, -0.83353633), vec2(0.70041707, 0.58055892), vec2(0.78863981, -0.50693407));
+	vec2 uniformSamples[16] = vec2[](vec2(-0.16696604, -0.09312990), vec2(0.53086904, 0.58433708), vec2(0.78145449, -0.86848999), vec2(0.74769790, 0.07194131), vec2(-0.09741326, 0.74185956), vec2(0.32706693, -0.03813042), vec2(0.73635845, 0.86372260), vec2(-0.27280913, 0.54069966), vec2(0.01584532, 0.26754421), vec2(-0.68606618, 0.53619244), vec2(-0.33333386, 0.35455430), vec2(-0.43123940, -0.60522600), vec2(0.03626988, -0.22807865), vec2(-0.53173498, 0.54256439), vec2(-0.65302623, 0.75253209), vec2(0.07282969, 0.19763551));
 	float random(vec4 seed) {
 		float dot_product = dot(seed, vec4(12.9898,78.233,45.164,94.673));
 		return fract(sin(dot_product) * 43758.5453);
@@ -154,11 +152,11 @@ const char* mainFrag = R"(
         }
         if (!different) return shadowVal == 1.0f ? 1.0f : shadowVal / 5.0;
         // If on shadow edge, sample using nearby precalculated uniform random coordinates
-		for (int i = 0; i < edgeSamples; i++) {
-			int ind = int(float(edgeSamples)*random(vec4(gl_FragCoord.xyy, i))) % edgeSamples;
+		for (int i = 0; i < 16; i++) {
+			int ind = int(float(16)*random(vec4(gl_FragCoord.xyy, i))) % 16;
 			shadowVal += texture(shadow, vec3(coord.xy + uniformSamples[ind] * texelSize, coord.z)) == 0.0f ? 0.4f : 1.0f;
 		}
-        return shadowVal / (float(edgeSamples) + 5.0f);
+        return shadowVal / 21.0f;
     }
 	void main() {
         pColor = ambient + texture(txtr, vUv) * vec4(lightColor, 1) * calcShadow(shadowCoord);
@@ -321,6 +319,9 @@ vector<vec3> grass_instance_positions {
 	{32.21, 0, 32.18}, {32.75, 0, 36.64}, {30.44, 0, 40.23}, {23.81, 0, 41.49}, 
 	{19.42, 0, 37.20}
 };
+
+dMesh campfire_mesh;
+dMesh sleeping_bag_mesh;
 
 struct Car {
 	dMesh mesh;
@@ -548,16 +549,6 @@ void render_imgui() {
 	}
 	if (ImGui::BeginMenu("Renderer")) {
 		ImGui::ColorEdit3("Directional Light Color", lightColor);
-		char sampleComboPreview[11];
-		snprintf(sampleComboPreview, 11, "%d Samples", shadowEdgeSamples);
-		if (ImGui::BeginCombo("Shadow Edge Samples", sampleComboPreview)) {
-			if (ImGui::Selectable("2 Samples", shadowEdgeSamples == 2)) shadowEdgeSamples = 2;
-			if (ImGui::Selectable("4 Samples", shadowEdgeSamples == 4)) shadowEdgeSamples = 4;
-			if (ImGui::Selectable("8 Samples", shadowEdgeSamples == 8)) shadowEdgeSamples = 8;
-			if (ImGui::Selectable("16 Samples", shadowEdgeSamples == 16)) shadowEdgeSamples = 16;
-			if (ImGui::Selectable("32 Samples", shadowEdgeSamples == 32)) shadowEdgeSamples = 32;
-			ImGui::EndCombo();
-		}
 		if (ImGui::BeginCombo("Skybox", skyboxNames[cur_skybox].c_str())) {
 			for (int i = 0; i < skyboxes.size(); i++) {
 				if (ImGui::Selectable(skyboxNames[i].c_str(), cur_skybox == i)) cur_skybox = i;
@@ -630,8 +621,9 @@ void setup() {
 	floor_mesh = dMesh(floor_points, floor_uvs, floor_normals, floor_triangles, "textures/racetrack.png");
     mat4 large_tree_transform = Scale(2.0);
 	large_tree_mesh = dMesh("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
-	mat4 grass_transform;
-	grass_mesh = dMesh("objects/grass.obj", "textures/grass.png", grass_transform);
+	grass_mesh = dMesh("objects/grass.obj", "textures/grass.png", mat4());
+	campfire_mesh = dMesh("objects/campfire.obj", "textures/campfire.png", Scale(0.5f));
+	sleeping_bag_mesh = dMesh("objects/sleeping_bag.obj", "textures/sleeping_bag.png", Translate(0, 0.05, 0));
     // Setup instance render buffers
 	vector<mat4> large_tree_instance_transforms;
 	for (vec3 pos : large_tree_instance_positions)
@@ -664,6 +656,8 @@ void cleanup() {
 	floor_mesh.cleanup();
 	large_tree_mesh.cleanup();
 	grass_mesh.cleanup();
+	campfire_mesh.cleanup();
+	sleeping_bag_mesh.cleanup();
     // Cleanup skyboxes / particle system
 	for (dSkybox skybox : skyboxes)
 		skybox.cleanup();
@@ -687,6 +681,14 @@ void draw() {
 	SetUniform(shadowProgram, "model", floor_mesh.model);
 	SetUniform(shadowProgram, "transform", Scale(60));
 	floor_mesh.render();
+	SetUniform(shadowProgram, "model", campfire_mesh.model);
+	SetUniform(shadowProgram, "transform", Translate(-16.62, 0, 11.89));
+	campfire_mesh.render();
+	SetUniform(shadowProgram, "model", sleeping_bag_mesh.model);
+	SetUniform(shadowProgram, "transform", Translate(-17.86, 0, 10.67) * RotateY(-40.0f));
+	sleeping_bag_mesh.render();
+	SetUniform(shadowProgram, "transform", Translate(-15.92, 0, 10.98) * RotateY(45.0f));
+	sleeping_bag_mesh.render();
 	SetUniform(shadowProgram, "model", car.mesh.model);
 	SetUniform(shadowProgram, "transform", car.transform());
 	car.mesh.render();
@@ -724,13 +726,20 @@ void draw() {
 	SetUniform(mainProgram, "txtr", 0);
 	SetUniform(mainProgram, "shadow", 1);
 	SetUniform(mainProgram, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
-	SetUniform(mainProgram, "edgeSamples", shadowEdgeSamples);
 	SetUniform(mainProgram, "depth_vp", depthVP);
 	SetUniform(mainProgram, "persp", camera.persp);
 	SetUniform(mainProgram, "view", camera.view);
 	SetUniform(mainProgram, "model", floor_mesh.model);
 	SetUniform(mainProgram, "transform", Scale(60));
 	floor_mesh.render();
+	SetUniform(mainProgram, "model", campfire_mesh.model);
+	SetUniform(mainProgram, "transform", Translate(-16.62, 0, 11.89));
+	campfire_mesh.render();
+	SetUniform(mainProgram, "model", sleeping_bag_mesh.model);
+	SetUniform(mainProgram, "transform", Translate(-17.86, 0, 10.67) * RotateY(-40.0f));
+	sleeping_bag_mesh.render();
+	SetUniform(mainProgram, "transform", Translate(-15.92, 0, 10.98) * RotateY(45.0f));
+	sleeping_bag_mesh.render();
 	SetUniform(mainProgram, "model", car.mesh.model);
 	SetUniform(mainProgram, "transform", car.transform());
 	car.mesh.render();
@@ -741,7 +750,6 @@ void draw() {
     SetUniform(mainProgramInstanced, "txtr", 0);
     SetUniform(mainProgramInstanced, "shadow", 1);
     SetUniform(mainProgramInstanced, "lightColor", vec3(lightColor[0], lightColor[1], lightColor[2]));
-    SetUniform(mainProgramInstanced, "edgeSamples", shadowEdgeSamples);
     SetUniform(mainProgramInstanced, "depth_vp", depthVP);
     SetUniform(mainProgramInstanced, "persp", camera.persp);
     SetUniform(mainProgramInstanced, "view", camera.view);
