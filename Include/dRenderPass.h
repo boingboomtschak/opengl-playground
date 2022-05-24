@@ -4,15 +4,11 @@
 #define DRENDERPASS_HDR
 
 #include <vector>
-#include <unordered_map>
-#include <string>
 #include <stdexcept>
 #include "glad.h"
 #include "VecMat.h"
 
 using std::vector;
-using std::unordered_map;
-using std::string;
 using std::runtime_error;
 
 struct dRenderPass {

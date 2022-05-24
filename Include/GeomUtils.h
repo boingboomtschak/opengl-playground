@@ -157,4 +157,54 @@ inline mat4 DepthBias() {
 	);
 }
 
+// 3x3 matrix determinant
+inline float determinant(mat3 m) {
+	return (m[0][0]*m[1][1]*m[2][2]) 
+		+ (m[0][1]*m[1][2]*m[2][0]) 
+		+ (m[0][2]*m[1][0]*m[2][1]) 
+		- (m[0][2]*m[1][1]*m[2][0]) 
+		- (m[0][1]*m[1][0]*m[2][2]) 
+		- (m[0][0]*m[1][2]*m[2][1]);
+}
+
+// Get matrix produced by removing row i and col j
+inline mat3 submatrix(mat4 m, int i, int j) {
+	mat3 sm;
+	for (int a = 0; a < 3; a++)
+		for (int b = 0; b < 3; b++)
+			sm[a][b] = m[a >= i ? a + 1 : a][b >= j ? b + 1 : b];
+	return sm;
+}
+
+// 4x4 matrix determinant
+inline float determinant(mat4 m) {
+	return m[0][0] * determinant(submatrix(m, 0, 0))
+		- m[1][0] * determinant(submatrix(m, 1, 0))
+		+ m[2][0] * determinant(submatrix(m, 2, 0))
+		- m[3][0] * determinant(submatrix(m, 3, 0));
+}
+
+// Inverse of mat4
+inline mat4 inverse(mat4 m) {
+	mat4 adj;
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++)
+			adj[i][j] = pow(-1, i + j) * determinant(submatrix(m, j, i));
+	return (1.0 / determinant(m)) * adj;
+}
+
+inline vector<vec4> frustumCorners(mat4 proj, mat4 view) {
+	mat4 inv = inverse(proj * view);
+	vector<vec4> corners;
+	for (int x = 0; x < 2; x++) {
+		for (int y = 0; y < 2; y++) {
+			for (int z = 0; z < 2; z++) {
+				vec4 p = inv * vec4(2.0f * x - 1.0f, 2.0f * y - 1.0f, 2.0f * z - 1.0f, 1.0f);
+				corners.push_back(p / p.w);
+			}
+		}
+	}
+	return corners;
+}
+
 #endif // GEOM_UTIL_HDR
