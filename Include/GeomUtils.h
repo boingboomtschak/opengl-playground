@@ -189,8 +189,8 @@ inline mat4 inverse(mat4 m) {
 	mat4 adj;
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++)
-			adj[i][j] = pow(-1, i + j) * determinant(submatrix(m, j, i));
-	return (1.0 / determinant(m)) * adj;
+			adj[i][j] = (float)pow(-1, i + j) * determinant(submatrix(m, j, i));
+	return (1.0f / determinant(m)) * adj;
 }
 
 inline vector<vec4> frustumCorners(mat4 proj, mat4 view) {

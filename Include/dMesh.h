@@ -12,7 +12,7 @@
 using std::vector;
 using std::runtime_error;
 
-/* dMesh does a number of things to be render pass agnostic:
+/* Mesh does a number of things to be render pass agnostic:
  - Creates its own internal VAO, VBO, and EBO
  - Maps vertex attributes (points, normals, uvs) to specific locations (TODO, and then write out location values later)
  - Binds its VAO to render
@@ -26,7 +26,7 @@ Render passes using it should:
  - Expect its texture to be bound to unit 0
 */
 
-struct dMesh {
+struct Mesh {
     mat4 model = mat4();
     GLuint VAO = 0;
     GLuint VBO = 0;
@@ -34,9 +34,9 @@ struct dMesh {
     GLuint EBO = 0;
     GLuint texture = 0;
     ObjData objData;
-    GLsizei num_instances;
-    dMesh() { };
-    dMesh(vector<vec3> points, vector<vec2> uvs, vector<vec3> normals, vector<int3> indices, string texFilename, bool texMipmap = true) {
+    GLsizei num_instances = 0;
+    Mesh() { };
+    Mesh(vector<vec3> points, vector<vec2> uvs, vector<vec3> normals, vector<int3> indices, string texFilename, bool texMipmap = true) {
         objData.points = points;
         objData.uvs = uvs;
         objData.normals = normals;
@@ -46,7 +46,7 @@ struct dMesh {
             throw runtime_error("Failed to read texture '" + texFilename + "'!");
         allocate();
     }
-    dMesh(string objFilename, string texFilename, mat4 modelTransform) {
+    Mesh(string objFilename, string texFilename, mat4 modelTransform) {
         objData = readObj(objFilename);
         normalizePoints(objData.points, 1.0f);
         texture = loadTexture(texFilename);
@@ -98,13 +98,13 @@ struct dMesh {
     void setupInstances(vector<mat4>& transforms) {
         // Clean up previous VArray/VBuffer
         if (transform_VBO) glDeleteBuffers(1, &transform_VBO);
-        num_instances = transforms.size();
+        num_instances = (GLsizei)transforms.size();
         size_t size_mat4 = sizeof(mat4);
         // Setup transform buffer in VAO
         glBindVertexArray(VAO);
         glGenBuffers(1, &transform_VBO);
         glBindBuffer(GL_ARRAY_BUFFER, transform_VBO);
-        GLsizei tfSize = transforms.size() * size_mat4;
+        GLsizei tfSize = (GLsizei)(transforms.size() * size_mat4);
         glBufferData(GL_ARRAY_BUFFER, tfSize, NULL, GL_STATIC_DRAW);
         for (size_t i = 0; i < transforms.size(); i++) {
             mat4 t = Transpose(transforms[i]);
@@ -118,6 +118,7 @@ struct dMesh {
         glBindVertexArray(0);
     }
     void renderInstanced() {
+        if (num_instances == 0) return;
         glBindVertexArray(VAO);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);

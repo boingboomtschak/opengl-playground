@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include "VecMat.h"
 #include "GeomUtils.h"
+#include "dCamera.h"
 #include "dRenderPass.h"
 #include "dMesh.h"
 #include "dMisc.h"
@@ -29,7 +30,7 @@ using std::string;
 using std::runtime_error;
 using time_p = std::chrono::system_clock::time_point;
 using sys_clock = std::chrono::system_clock;
-using double_ms = std::chrono::duration<double, std::milli>;
+using float_ms = std::chrono::duration<float, std::milli>;
 
 GLFWwindow* window;
 int windowed_width = 1000, windowed_height = 800;
@@ -42,10 +43,10 @@ bool fullscreen = false;
 float dt;
 
 const int SHADOW_DIM = 16384;
-dRenderPass mainPass;
-dRenderPass mainPassInst;
-dRenderPass shadowPass;
-dRenderPass shadowPassInst;
+RenderPass mainPass;
+RenderPass mainPassInst;
+RenderPass shadowPass;
+RenderPass shadowPassInst;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
 
@@ -180,151 +181,117 @@ int cur_skybox = 0;
 
 dParticles particleSystem;
 
-struct Camera {
-	float fov = 60;
-	float zNear = 1.0f;
-	float zFar = 120.0f;
-	int width, height;
-    vec3 loc, look;
-    vec3 up = vec3(0, 1, 0);
-	mat4 view;
-	mat4 persp;
-	Camera() {
-		width = win_width;
-		height = win_height;
-		loc = vec3(-1.5, 2, 0);
-		look = vec3(0, 0, 0);
-		view = LookAt(loc, look, up);
-		persp = Perspective(fov, (float)width / (float)height, zNear, zFar);
-	}
-	void moveTo(vec3 _loc) {
-		loc = _loc;
-		view = LookAt(_loc, look, up);
-	}
-	void lookAt(vec3 _look) {
-		look = _look;
-		view = LookAt(loc, _look, up);
-	}
-	void adjustFov(float _fov) {
-		fov = _fov;
-		persp = Perspective(fov, (float)win_width / (float)win_height, zNear, zFar);
-	}
-	void resize(int _width, int _height) {
-		width = _width;
-		height = _height;
-		persp = Perspective(fov, (float)width / (float)height, zNear, zFar);
-	}
-} camera;
+Camera camera(win_width, win_height, 60, 0.5f, 120.0f);
 
-int camera_loc = 1;
+int camera_type = 1;
 // 1 - Third person chase camera
 // 2 - Top-down camera of arena
 // 3 - Hood camera
 // 4 - Frozen free camera, moved right behind car
 
-dMesh floor_mesh;
+Mesh floor_mesh;
 vector<vec3> floor_points = { {-1, 0, -1}, {1, 0, -1}, {1, 0, 1}, {-1, 0, 1} };
 vector<vec3> floor_normals = { {0, 1, 0}, {0, 1, 0}, {0, 1, 0}, {0, 1, 0} };
 vector<vec2> floor_uvs = { {0, 0}, {1, 0}, {1, 1}, {0, 1} };
 vector<int3> floor_triangles = { {2, 1, 0}, {0, 3, 2} };
 
-dMesh large_tree_mesh;
+Mesh large_tree_mesh;
 vector<vec3> large_tree_instance_positions {
-	{49.00, 0, 37.00}, {50.00, 0, 32.00}, {29.00, 0, 15.00}, {50.00, 0, 10.00},
-	{-10.00, 0, 32.00}, {-34.00, 0, 7.00}, {15.00, 0, -13.00}, {6.00, 0, -15.00},
-	{-0.75, 0, 0.3}, {-9.11, 0, -8.64}, {-16.16, 0, -12.58}, {-27.02, 0, -15.88}, 
-	{-32.39, 0, -7.18}, {-22.69, 0, -24.82}, {-15.40, 0, -31.95}, {-8.23, 0, -33.90}, 
-	{-7.48, 0, -48.32}, {7.70, 0, -34.07}, {49.83, 0, -22.92}, {54.68, 0, -30.48}, 
-	{52.80, 0, -38.50}, {46.54, 0, -49.25}, {36.14, 0, -50.60}, {26.13, 0, -51.73}, 
-	{10.83, 0, -51.97}, {-13.78, 0, -33.34}, {-25.02, 0, -24.78}, {-31.62, 0, -16.71}, 
-	{-29.06, 0, -6.59}, {7.55, 0, 10.67}, {25.84, 0, 21.15}, {23.49, 0, 34.07}, 
-	{7.52, 0, 46.78}, {-2.10, 0, 54.42}, {-12.51, 0, 54.03}, {-21.23, 0, 54.79}, 
-	{-32.39, 0, 54.86}, {-37.58, 0, 46.49}, {-36.75, 0, 35.87}, {-41.17, 0, 30.20}, 
-	{-52.15, 0, 31.90}, {-57.76, 0, 14.15}, {-58.13, 0, 3.82}, {-58.32, 0, -4.81}, 
-	{-58.50, 0, -15.75}, {-58.31, 0, -26.44}, {-58.05, 0, -38.86}, {-57.40, 0, -49.04},
-	{-34.08, 0, -27.36}, {-35.94, 0, -16.43}, {-31.61, 0, -12.72}, {-22.11, 0, -10.64}, 
-	{-11.82, 0, -11.64}, {-10.84, 0, -21.56}, {-17.93, 0, -28.87}, {-25.40, 0, -33.24}, 
-	{-34.90, 0, -30.52}, {-8.35, 0, 9.46}, {-7.34, 0, 21.43}, {-7.45, 0, 35.74}, 
-	{-16.61, 0, 39.66}, {7.60, 0, 16.11}, {12.85, 0, 11.31}, {23.16, 0, 8.94}, 
-	{23.09, 0, 17.21}, {33.01, 0, 7.78}, {31.65, 0, 19.08}, {30.85, 0, 25.40}, 
-	{35.05, 0, 33.10}, {29.93, 0, 34.80}, {22.32, 0, 41.41}, {6.87, 0, 36.39}, 
-	{6.92, 0, 55.30}, {12.63, 0, 57.65}, {22.51, 0, 57.53}, {29.38, 0, 54.41}, 
-	{41.66, 0, 56.19}, {51.12, 0, 53.26}, {55.26, 0, 46.08}, {50.39, 0, 42.98}, 
-	{53.33, 0, 37.18}, {56.60, 0, 29.23}, {50.68, 0, 23.18}, {47.43, 0, 17.28}, 
-	{53.80, 0, 13.17}, {57.79, 0, 2.03}, {53.03, 0, -7.96}, {54.85, 0, -20.03}, 
-	{53.67, 0, -44.20}, {35.25, 0, -35.85}, {25.01, 0, 17.04}, {27.80, 0, 18.07}, 
-	{30.01, 0, 21.32}, {27.01, 0, 24.33},
+	{49, 0, 37}, {50, 0, 32}, {29, 0, 15}, {50, 0, 10},
+	{-10, 0, 32}, {-34, 0, 7}, {15, 0, -13}, {6, 0, -15},
+	{-0.75f, 0, 0.3f}, {-9.11f, 0, -8.64f}, {-16.16f, 0, -12.58f}, {-27.02f, 0, -15.88f}, 
+	{-32.39f, 0, -7.18f}, {-22.69f, 0, -24.82f}, {-15.40f, 0, -31.95f}, {-8.23f, 0, -33.90f}, 
+	{-7.48f, 0, -48.32f}, {7.70f, 0, -34.07f}, {49.83f, 0, -22.92f}, {54.68f, 0, -30.48f}, 
+	{52.80f, 0, -38.50f}, {46.54f, 0, -49.25f}, {36.14f, 0, -50.60f}, {26.13f, 0, -51.73f}, 
+	{10.83f, 0, -51.97f}, {-13.78f, 0, -33.34f}, {-25.02f, 0, -24.78f}, {-31.62f, 0, -16.71f}, 
+	{-29.06f, 0, -6.59f}, {7.55f, 0, 10.67f}, {25.84f, 0, 21.15f}, {23.49f, 0, 34.07f}, 
+	{7.52f, 0, 46.78f}, {-2.10f, 0, 54.42f}, {-12.51f, 0, 54.03f}, {-21.23f, 0, 54.79f}, 
+	{-32.39f, 0, 54.86f}, {-37.58f, 0, 46.49f}, {-36.75f, 0, 35.87f}, {-41.17f, 0, 30.20f}, 
+	{-52.15f, 0, 31.90f}, {-57.76f, 0, 14.15f}, {-58.13f, 0, 3.82f}, {-58.32f, 0, -4.81f}, 
+	{-58.50f, 0, -15.75f}, {-58.31f, 0, -26.44f}, {-58.05f, 0, -38.86f}, {-57.40f, 0, -49.04f},
+	{-34.08f, 0, -27.36f}, {-35.94f, 0, -16.43f}, {-31.61f, 0, -12.72f}, {-22.11f, 0, -10.64f}, 
+	{-11.82f, 0, -11.64f}, {-10.84f, 0, -21.56f}, {-17.93f, 0, -28.87f}, {-25.40f, 0, -33.24f}, 
+	{-34.90f, 0, -30.52f}, {-8.35f, 0, 9.46f}, {-7.34f, 0, 21.43f}, {-7.45f, 0, 35.74f}, 
+	{-16.61f, 0, 39.66f}, {7.60f, 0, 16.11f}, {12.85f, 0, 11.31f}, {23.16f, 0, 8.94f}, 
+	{23.09f, 0, 17.21f}, {33.01f, 0, 7.78f}, {31.65f, 0, 19.08f}, {30.85f, 0, 25.40f}, 
+	{35.05f, 0, 33.10f}, {29.93f, 0, 34.80f}, {22.32f, 0, 41.41f}, {6.87f, 0, 36.39f}, 
+	{6.92f, 0, 55.30f}, {12.63f, 0, 57.65f}, {22.51f, 0, 57.53f}, {29.38f, 0, 54.41f}, 
+	{41.66f, 0, 56.19f}, {51.12f, 0, 53.26f}, {55.26f, 0, 46.08f}, {50.39f, 0, 42.98f}, 
+	{53.33f, 0, 37.18f}, {56.60f, 0, 29.23f}, {50.68f, 0, 23.18f}, {47.43f, 0, 17.28f}, 
+	{53.80f, 0, 13.17f}, {57.79f, 0, 2.03f}, {53.03f, 0, -7.96f}, {54.85f, 0, -20.03f}, 
+	{53.67f, 0, -44.20f}, {35.25f, 0, -35.85f}, {25.01f, 0, 17.04f}, {27.80f, 0, 18.07f}, 
+	{30.01f, 0, 21.32f}, {27.01f, 0, 24.33f},
 };
-dMesh grass_mesh;
+Mesh grass_mesh;
 vector<vec3> grass_instance_positions {
-	{7.79, 0, -5.38}, {5.27, 0, -8.41}, {-6.32, 0, -8.58}, {-9.40, 0, -5.62}, 
-	{-9.49, 0, 5.47}, {-6.46, 0, 8.56}, {4.59, 0, 9.61}, {7.51, 0, 6.12},
-	{12.07, 0, 5.49}, {15.67, 0, 5.87}, {20.84, 0, 5.78}, {23.66, 0, 10.43},
-	{16.71, 0, 11.87}, {-7.01, 0, 17.79}, {-7.03, 0, 27.66}, {-7.15, 0, 37.66},
-	{-18.52, 0, 41.08}, {-21.48, 0, 34.07}, {-20.76, 0, 22.88}, {-30.34, 0, 15.04},
-	{-36.73, 0, 14.27}, {-43.83, 0, 14.90}, {-44.92, 0, 9.24}, {-35.86, 0, -6.22},
-	{-25.08, 0, -8.68}, {-14.91, 0, -15.59}, {-10.73, 0, -23.47}, {-11.57, 0, -30.97},
-	{-20.33, 0, -33.76}, {-31.8, 0, -28.42}, {13.06, 0, -5.47}, {20.72, 0, -5.45}, 
-	{31.65, 0, -4.70}, {35.97, 0, -33.82}, {25.40, 0, -36.43}, {9.04, 0, 8.93},
-	{7.82, 0, -36.36}, {5.39, 0, -23.72}, {-9.14, 0, -11.88}, {-20.57, 0, -12.46}, 
-	{-32.20, 0, -20.17}, {-20.66, 0, -26.84}, {4.43, 0, -47.64}, {3.93, 0, -53.39}, 
-	{0.33, 0, -57.04}, {-7.27, 0, -51.45}, {-10.98, 0, -48.05}, {16.12, 0, -50.30}, 
-	{30.95, 0, -49.04}, {45.22, 0, -46.89}, {49.36, 0, -38.55}, {50.14, 0, -25.47}, 
-	{51.44, 0, -17.93}, {48.32, 0, -10.58}, {52.20, 0, -5.34}, {55.19, 0, 2.71}, 
-	{53.23, 0, 10.13}, {48.65, 0, 19.89}, {53.20, 0, 29.25}, {52.94, 0, 39.64}, 
-	{40.97, 0, 53.80}, {33.35, 0, 55.97}, {22.45, 0, 55.02}, {12.37, 0, 52.92}, 
-	{4.89, 0, 51.58}, {7.12, 0, 44.37}, {8.70, 0, 35.15}, {8.79, 0, 15.86}, 
-	{8.65, 0, -8.66}, {5.71, 0, -19.49}, {-7.94, 0, -18.39}, {-12.41, 0, -13.37}, 
-	{-18.98, 0, -6.11}, {-23.53, 0, -13.22}, {-18.43, 0, -21.01}, {-12.61, 0, -26.95}, 
-	{-20.56, 0, -31.51}, {-25.20, 0, -27.63}, {-26.66, 0, -18.66}, {-28.89, 0, -11.67}, 
-	{-35.18, 0, -10.46}, {-35.20, 0, -24.29}, {-42.69, 0, 6.82}, {-33.15, 0, 27.00}, 
-	{-33.92, 0, 33.73}, {-33.91, 0, 43.06}, {-33.89, 0, 49.01}, {-37.87, 0, 51.80}, 
-	{-41.86, 0, 46.81}, {-39.06, 0, 37.08}, {-37.24, 0, 30.39}, {-45.18, 0, 26.06}, 
-	{-52.10, 0, 28.20}, {-51.13, 0, 35.53}, {-48.92, 0, 42.02}, {-44.19, 0, 49.47}, 
-	{-48.15, 0, 51.39}, {-52.47, 0, 45.00}, {-19.89, 0, 37.80}, {-8.92, 0, 40.31}, 
-	{6.92, 0, 40.09}, {21.51, 0, 40.12}, {31.11, 0, 42.29}, {34.82, 0, 36.45}, 
-	{35.20, 0, 30.16}, {34.46, 0, 21.91}, {33.01, 0, 14.88}, {31.73, 0, 7.26}, 
-	{18.89, 0, 8.64}, {11.94, 0, 10.72}, {6.14, 0, 13.45}, {19.11, 0, 15.25}, 
-	{25.39, 0, 18.05}, {27.88, 0, 24.53}, {24.49, 0, 30.18}, {-15.33, 0, -9.27}, 
-	{-17.74, 0, -15.42}, {-21.91, 0, -19.81}, {-28.09, 0, -25.55}, {-35.06, 0, -18.19}, 
-	{-31.77, 0, -11.53}, {-17.96, 0, -8.67}, {-7.88, 0, -29.60}, {-14.56, 0, -29.49}, 
-	{-16.12, 0, -34.21}, {-21.71, 0, 28.06}, {6.18, 0, 37.26}, {7.01, 0, 49.03}, 
-	{10.97, 0, 55.62}, {17.51, 0, 56.45}, {49.75, 0, 49.19}, {53.50, 0, 33.92}, 
-	{49.00, 0, 25.35}, {53.92, 0, 22.33}, {49.92, 0, 17.05}, {53.79, 0, 16.88}, 
-	{56.55, 0, 13.86}, {56.15, 0, 8.20}, {50.05, 0, 6.49}, {33.86, 0, 10.72}, 
-	{26.73, 0, 12.74}, {23.75, 0, 14.55}, {29.74, 0, 18.33}, {28.37, 0, 7.24}, 
-	{34.98, 0, -7.36}, {26.29, 0, -5.06}, {48.05, 0, -21.12}, {52.87, 0, -23.11},
-	{54.21, 0, -27.11}, {49.96, 0, -33.09}, {49.25, 0, -43.09}, {49.27, 0, -49.34}, 
-	{43.54, 0, -53.94}, {34.86, 0, -55.65}, {31.18, 0, -54.53}, {23.49, 0, -47.76}, 
-	{19.93, 0, -52.79}, {16.68, 0, -57.96}, {11.80, 0, -57.26}, {9.42, 0, -53.46},
-	{10.55, 0, -47.26}, {16.66, 0, -47.86}, {7.30, 0, -56.81}, {0.79, 0, -55.33}, 
-	{-6.02, 0, -54.50}, {-11.82, 0, -57.15}, {-22.68, 0, -58.74}, {-30.38, 0, -57.70},
-	{-40.51, 0, -57.49}, {-53.80, 0, -57.32}, {-57.84, 0, -53.29}, {-58.09, 0, -44.97}, 
-	{-58.10, 0, -32.31}, {-57.77, 0, -20.81}, {-57.48, 0, -11.24}, {-57.76, 0, -0.54}, 
-	{-58.23, 0, 8.00}, {-57.65, 0, 20.25}, {-56.34, 0, 27.91}, {-12.13, 0, -7.25}, 
-	{-10.14, 0, -17.27}, {-13.09, 0, -21.82}, {-17.47, 0, -25.97}, {-23.17, 0, -31.02}, 
-	{-31.75, 0, -32.83}, {-31.41, 0, -24.12}, {-25.43, 0, -21.01}, {-19.74, 0, -23.85}, 
-	{-16.54, 0, -25.51}, {-7.47, 0, -25.94}, {-9.09, 0, -20.63}, {-20.19, 0, -17.30},
-	{-30.55, 0, -8.13}, {-24.77, 0, -6.63}, {-13.41, 0, -7.41}, {12.13, 0, -7.70}, 
-	{48.80, 0, -29.86}, {54.54, 0, -13.45}, {55.77, 0, -6.18}, {57.66, 0, -15.36}, 
-	{54.96, 0, -34.84}, {52.84, 0, -46.37}, {50.84, 0, -54.69}, {37.50, 0, -53.79}, 
-	{30.17, 0, -50.93}, {25.60, 0, -55.13}, {20.31, 0, -56.20}, {15.10, 0, -53.24}, 
-	{10.99, 0, -50.25}, {-0.23, 0, -53.39}, {-4.14, 0, -56.11}, {-11.35, 0, -52.83}, 
-	{-33.86, 0, -35.34}, {-36.90, 0, -22.12}, {-37.35, 0, -10.74}, {-21.66, 0, 24.40}, 
-	{-21.72, 0, 39.58}, {-31.84, 0, 51.97}, {-36.49, 0, 54.49}, {-34.69, 0, 56.44}, 
-	{-27.99, 0, 54.64}, {-20.92, 0, 53.10}, {-16.84, 0, 56.33}, {-12.06, 0, 57.21}, 
-	{-9.39, 0, 53.56}, {-4.92, 0, 54.34}, {2.20, 0, 56.54}, {8.00, 0, 52.92}, 
-	{9.49, 0, 57.30}, {15.74, 0, 54.92}, {24.05, 0, 41.10}, {25.94, 0, 36.21}, 
-	{27.32, 0, 32.39}, {29.15, 0, 27.36}, {32.31, 0, 21.46}, {35.16, 0, 24.48}, 
-	{32.21, 0, 32.18}, {32.75, 0, 36.64}, {30.44, 0, 40.23}, {23.81, 0, 41.49}, 
-	{19.42, 0, 37.20}
+	{7.79f, 0, -5.38f}, {5.27f, 0, -8.41f}, {-6.32f, 0, -8.58f}, {-9.40f, 0, -5.62f}, 
+	{-9.49f, 0, 5.47f}, {-6.46f, 0, 8.56f}, {4.59f, 0, 9.61f}, {7.51f, 0, 6.12f},
+	{12.07f, 0, 5.49f}, {15.67f, 0, 5.87f}, {20.84f, 0, 5.78f}, {23.66f, 0, 10.43f},
+	{16.71f, 0, 11.87f}, {-7.01f, 0, 17.79f}, {-7.03f, 0, 27.66f}, {-7.15f, 0, 37.66f},
+	{-18.52f, 0, 41.08f}, {-21.48f, 0, 34.07f}, {-20.76f, 0, 22.88f}, {-30.34f, 0, 15.04f},
+	{-36.73f, 0, 14.27f}, {-43.83f, 0, 14.90f}, {-44.92f, 0, 9.24f}, {-35.86f, 0, -6.22f},
+	{-25.08f, 0, -8.68f}, {-14.91f, 0, -15.59f}, {-10.73f, 0, -23.47f}, {-11.57f, 0, -30.97f},
+	{-20.33f, 0, -33.76f}, {-31.8f, 0, -28.42f}, {13.06f, 0, -5.47f}, {20.72f, 0, -5.45f}, 
+	{31.65f, 0, -4.70f}, {35.97f, 0, -33.82f}, {25.40f, 0, -36.43f}, {9.04f, 0, 8.93f},
+	{7.82f, 0, -36.36f}, {5.39f, 0, -23.72f}, {-9.14f, 0, -11.88f}, {-20.57f, 0, -12.46f}, 
+	{-32.20f, 0, -20.17f}, {-20.66f, 0, -26.84f}, {4.43f, 0, -47.64f}, {3.93f, 0, -53.39f}, 
+	{0.33f, 0, -57.04f}, {-7.27f, 0, -51.45f}, {-10.98f, 0, -48.05f}, {16.12f, 0, -50.30f}, 
+	{30.95f, 0, -49.04f}, {45.22f, 0, -46.89f}, {49.36f, 0, -38.55f}, {50.14f, 0, -25.47f}, 
+	{51.44f, 0, -17.93f}, {48.32f, 0, -10.58f}, {52.20f, 0, -5.34f}, {55.19f, 0, 2.71f}, 
+	{53.23f, 0, 10.13f}, {48.65f, 0, 19.89f}, {53.20f, 0, 29.25f}, {52.94f, 0, 39.64f}, 
+	{40.97f, 0, 53.80f}, {33.35f, 0, 55.97f}, {22.45f, 0, 55.02f}, {12.37f, 0, 52.92f}, 
+	{4.89f, 0, 51.58f}, {7.12f, 0, 44.37f}, {8.70f, 0, 35.15f}, {8.79f, 0, 15.86f}, 
+	{8.65f, 0, -8.66f}, {5.71f, 0, -19.49f}, {-7.94f, 0, -18.39f}, {-12.41f, 0, -13.37f}, 
+	{-18.98f, 0, -6.11f}, {-23.53f, 0, -13.22f}, {-18.43f, 0, -21.01f}, {-12.61f, 0, -26.95f}, 
+	{-20.56f, 0, -31.51f}, {-25.20f, 0, -27.63f}, {-26.66f, 0, -18.66f}, {-28.89f, 0, -11.67f}, 
+	{-35.18f, 0, -10.46f}, {-35.20f, 0, -24.29f}, {-42.69f, 0, 6.82f}, {-33.15f, 0, 27.00f}, 
+	{-33.92f, 0, 33.73f}, {-33.91f, 0, 43.06f}, {-33.89f, 0, 49.01f}, {-37.87f, 0, 51.80f}, 
+	{-41.86f, 0, 46.81f}, {-39.06f, 0, 37.08f}, {-37.24f, 0, 30.39f}, {-45.18f, 0, 26.06f}, 
+	{-52.10f, 0, 28.20f}, {-51.13f, 0, 35.53f}, {-48.92f, 0, 42.02f}, {-44.19f, 0, 49.47f}, 
+	{-48.15f, 0, 51.39f}, {-52.47f, 0, 45.00f}, {-19.89f, 0, 37.80f}, {-8.92f, 0, 40.31f}, 
+	{6.92f, 0, 40.09f}, {21.51f, 0, 40.12f}, {31.11f, 0, 42.29f}, {34.82f, 0, 36.45f}, 
+	{35.20f, 0, 30.16f}, {34.46f, 0, 21.91f}, {33.01f, 0, 14.88f}, {31.73f, 0, 7.26f}, 
+	{18.89f, 0, 8.64f}, {11.94f, 0, 10.72f}, {6.14f, 0, 13.45f}, {19.11f, 0, 15.25f}, 
+	{25.39f, 0, 18.05f}, {27.88f, 0, 24.53f}, {24.49f, 0, 30.18f}, {-15.33f, 0, -9.27f}, 
+	{-17.74f, 0, -15.42f}, {-21.91f, 0, -19.81f}, {-28.09f, 0, -25.55f}, {-35.06f, 0, -18.19f}, 
+	{-31.77f, 0, -11.53f}, {-17.96f, 0, -8.67f}, {-7.88f, 0, -29.60f}, {-14.56f, 0, -29.49f}, 
+	{-16.12f, 0, -34.21f}, {-21.71f, 0, 28.06f}, {6.18f, 0, 37.26f}, {7.01f, 0, 49.03f}, 
+	{10.97f, 0, 55.62f}, {17.51f, 0, 56.45f}, {49.75f, 0, 49.19f}, {53.50f, 0, 33.92f}, 
+	{49.00f, 0, 25.35f}, {53.92f, 0, 22.33f}, {49.92f, 0, 17.05f}, {53.79f, 0, 16.88f}, 
+	{56.55f, 0, 13.86f}, {56.15f, 0, 8.20f}, {50.05f, 0, 6.49f}, {33.86f, 0, 10.72f}, 
+	{26.73f, 0, 12.74f}, {23.75f, 0, 14.55f}, {29.74f, 0, 18.33f}, {28.37f, 0, 7.24f}, 
+	{34.98f, 0, -7.36f}, {26.29f, 0, -5.06f}, {48.05f, 0, -21.12f}, {52.87f, 0, -23.11f},
+	{54.21f, 0, -27.11f}, {49.96f, 0, -33.09f}, {49.25f, 0, -43.09f}, {49.27f, 0, -49.34f}, 
+	{43.54f, 0, -53.94f}, {34.86f, 0, -55.65f}, {31.18f, 0, -54.53f}, {23.49f, 0, -47.76f}, 
+	{19.93f, 0, -52.79f}, {16.68f, 0, -57.96f}, {11.80f, 0, -57.26f}, {9.42f, 0, -53.46f},
+	{10.55f, 0, -47.26f}, {16.66f, 0, -47.86f}, {7.30f, 0, -56.81f}, {0.79f, 0, -55.33f}, 
+	{-6.02f, 0, -54.50f}, {-11.82f, 0, -57.15f}, {-22.68f, 0, -58.74f}, {-30.38f, 0, -57.70f},
+	{-40.51f, 0, -57.49f}, {-53.80f, 0, -57.32f}, {-57.84f, 0, -53.29f}, {-58.09f, 0, -44.97f}, 
+	{-58.10f, 0, -32.31f}, {-57.77f, 0, -20.81f}, {-57.48f, 0, -11.24f}, {-57.76f, 0, -0.54f}, 
+	{-58.23f, 0, 8.00f}, {-57.65f, 0, 20.25f}, {-56.34f, 0, 27.91f}, {-12.13f, 0, -7.25f}, 
+	{-10.14f, 0, -17.27f}, {-13.09f, 0, -21.82f}, {-17.47f, 0, -25.97f}, {-23.17f, 0, -31.02f}, 
+	{-31.75f, 0, -32.83f}, {-31.41f, 0, -24.12f}, {-25.43f, 0, -21.01f}, {-19.74f, 0, -23.85f}, 
+	{-16.54f, 0, -25.51f}, {-7.47f, 0, -25.94f}, {-9.09f, 0, -20.63f}, {-20.19f, 0, -17.30f},
+	{-30.55f, 0, -8.13f}, {-24.77f, 0, -6.63f}, {-13.41f, 0, -7.41f}, {12.13f, 0, -7.70f}, 
+	{48.80f, 0, -29.86f}, {54.54f, 0, -13.45f}, {55.77f, 0, -6.18f}, {57.66f, 0, -15.36f}, 
+	{54.96f, 0, -34.84f}, {52.84f, 0, -46.37f}, {50.84f, 0, -54.69f}, {37.50f, 0, -53.79f}, 
+	{30.17f, 0, -50.93f}, {25.60f, 0, -55.13f}, {20.31f, 0, -56.20f}, {15.10f, 0, -53.24f}, 
+	{10.99f, 0, -50.25f}, {-0.23f, 0, -53.39f}, {-4.14f, 0, -56.11f}, {-11.35f, 0, -52.83f}, 
+	{-33.86f, 0, -35.34f}, {-36.90f, 0, -22.12f}, {-37.35f, 0, -10.74f}, {-21.66f, 0, 24.40f}, 
+	{-21.72f, 0, 39.58f}, {-31.84f, 0, 51.97f}, {-36.49f, 0, 54.49f}, {-34.69f, 0, 56.44f}, 
+	{-27.99f, 0, 54.64f}, {-20.92f, 0, 53.10f}, {-16.84f, 0, 56.33f}, {-12.06f, 0, 57.21f}, 
+	{-9.39f, 0, 53.56f}, {-4.92f, 0, 54.34f}, {2.20f, 0, 56.54f}, {8.00f, 0, 52.92f}, 
+	{9.49f, 0, 57.30f}, {15.74f, 0, 54.92f}, {24.05f, 0, 41.10f}, {25.94f, 0, 36.21f}, 
+	{27.32f, 0, 32.39f}, {29.15f, 0, 27.36f}, {32.31f, 0, 21.46f}, {35.16f, 0, 24.48f}, 
+	{32.21f, 0, 32.18f}, {32.75f, 0, 36.64f}, {30.44f, 0, 40.23f}, {23.81f, 0, 41.49f}, 
+	{19.42f, 0, 37.20f}
 };
 
-dMesh campfire_mesh;
-dMesh sleeping_bag_mesh;
+Mesh campfire_mesh;
+Mesh sleeping_bag_mesh;
 
 struct Car {
-	dMesh mesh;
+	Mesh mesh;
 	float mass = 0.0; // mass of car
 	float engine = 0.0; // engine force
 	float roll = 0.0; // rolling resistance
@@ -334,7 +301,7 @@ struct Car {
 	vec3 dir; // direction
 	vec3 vel; // velocity
 	Car() { };
-	Car(dMesh _mesh, float _mass, float _engine, float _roll, float _drag) {
+	Car(Mesh _mesh, float _mass, float _engine, float _roll, float _drag) {
 		mesh = _mesh;
 		mass = _mass;
 		engine = _engine;
@@ -364,21 +331,21 @@ struct Car {
 		//   regardless of framerate
 		last_pt += dt;
 		// Check if space key pressed ("drifting")
-		float drift = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) ? 0.5 : 1.0;
+		float drift = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) ? 0.5f : 1.0f;
 		// Check for car turning with A/D
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			float deg = dt * -1.5 * ((drift == 0.5) ? 1.25 : 1.0);
+			float deg = dt * -1.5f * ((drift == 0.5f) ? 1.25f : 1.0f);
 			vec4 dirw = RotateY(deg) * dir;
 			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			float deg = dt * 1.5 * ((drift == 0.5) ? 1.25 : 1.0);
+			float deg = dt * 1.5f * ((drift == 0.5f) ? 1.25f : 1.0f);
 			vec4 dirw = RotateY(deg) * dir;
 			dir = vec3(dirw.x, dirw.y, dirw.z);
 		}
 		vec3 force = vec3(0.0);
 		// Apply engine force if pressed (F = u{vel} * engine)
-		float turbo = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ? 1.5 : 1.0;
+		float turbo = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) ? 1.5f : 1.0f;
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 			force += turbo * drift * dir * engine;
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -398,8 +365,8 @@ struct Car {
 			last_pt = 0.0f;
 			// Spawn drifting particles if roll wt and speed higher than threshold
 			if (length(vel) > 0.16f && roll_wt > 1.6) {
-				particleSystem.createParticle(pos - 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
-				particleSystem.createParticle(pos + 0.3 * cross(dir, vec3(0, 1, 0)) - 0.5 * dir, vec3(1, 0.1, 0.1));
+				particleSystem.createParticle(pos - 0.3f * cross(dir, vec3(0, 1, 0)) - 0.5f * dir, vec3(1, 0.1f, 0.1f));
+				particleSystem.createParticle(pos + 0.3f * cross(dir, vec3(0, 1, 0)) - 0.5f * dir, vec3(1, 0.1f, 0.1f));
 			}
 		}
 		// Move velocity according to acceleration
@@ -412,9 +379,8 @@ struct Car {
 void WindowResized(GLFWwindow* window, int _width, int _height) {
 	int width, height;
 	glfwGetFramebufferSize(window, &width, &height);
-	win_width = width;
-	win_height = height;
-	camera.resize(width, height);
+	camera.width = win_width = width;
+	camera.height = win_height = height;
 	glViewport(0, 0, win_width, win_height);
 }
 
@@ -429,21 +395,21 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
         if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
             showPerformance = !showPerformance;
         } else {
-            printf("{%.2f, %.0f, %.2f}, ", car.pos.x, car.pos.y, car.pos.z);
+            printf("{%.2ff, %.0ff, %.2ff}, ", car.pos.x, car.pos.y, car.pos.z);
         }
     }
     if (key == GLFW_KEY_1 && action == GLFW_PRESS)
-        camera_loc = 1;
+        camera_type = 1;
     if (key == GLFW_KEY_2 && action == GLFW_PRESS)
-        camera_loc = 2;
+        camera_type = 2;
     if (key == GLFW_KEY_3 && action == GLFW_PRESS)
-        camera_loc = 3;
+        camera_type = 3;
     if (key == GLFW_KEY_4 && action == GLFW_PRESS) {
-        camera_loc = 4;
-        camera.moveTo(car.pos + vec3(0, 1.5, 0) + -3 * car.dir);
-        camera.lookAt(car.pos + 2.5 * car.dir);
+        camera_type = 4;
+		camera.loc = car.pos + vec3(0, 1.5, 0) + -3 * car.dir;
+		camera.look = car.pos + 2.5 * car.dir;
+		camera.fov = 70;
         camera.up = vec3(0, 1, 0);
-		camera.adjustFov(70);
     }
 	if (key == GLFW_KEY_BACKSLASH && action == GLFW_PRESS) {
 		cur_skybox++;
@@ -475,7 +441,7 @@ void load_icon() {
 
 void update_title(time_p cur) {
 	static time_p lastTitleUpdate = sys_clock::now();
-	double_ms sinceTitleUpdate = cur - lastTitleUpdate;
+	float_ms sinceTitleUpdate = cur - lastTitleUpdate;
     if (sinceTitleUpdate.count() < 200.0f) return;
     char title[30];
     snprintf(title, 30, "Drive: %.0f fps", (1.0f / dt) * 60.0f);
@@ -490,7 +456,7 @@ void init_perf() {
 
 void collect_perf(time_p cur) {
     static time_p lastPerfCollect = sys_clock::now();
-    double_ms sincePerfCollect = cur - lastPerfCollect;
+    float_ms sincePerfCollect = cur - lastPerfCollect;
     if (sincePerfCollect.count() < 500.0f) return;
     ImGuiIO& io = ImGui::GetIO();
     for (int i = 1; i < PERF_MEMORY; i++) {
@@ -519,8 +485,8 @@ void show_performance_window() {
         ImGui::Text("Initialization Time: %.2f ms", init_time);
         ImGui::Separator();
         static ImPlotFlags plot_flags = ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText;
-        ImPlot::PushStyleColor(ImPlotCol_FrameBg, {0, 0, 0, 0.3});
-        ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
+        ImPlot::PushStyleColor(ImPlotCol_FrameBg, {0.0f, 0.0f, 0.0f, 0.3f});
+        ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0.0f, 0.0f, 0.0f, 0.0f});
         if (ImPlot::BeginPlot("Frames Per Second", ImVec2(work_size.x / 5.0f, work_size.y / 10.0f), plot_flags)) {
             static ImPlotAxisFlags plot_x_flags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_NoTickMarks | ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_NoGridLines;
             static ImPlotAxisFlags plot_y_flags = ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit;
@@ -610,16 +576,16 @@ void setup() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Setup meshes
 	mat4 car_transform = Scale(0.75f) * RotateY(-90);
-	dMesh car_mesh = dMesh("objects/car.obj", "textures/car.png", car_transform);
+	Mesh car_mesh = Mesh("objects/car.obj", "textures/car.png", car_transform);
 	// Mesh, mass, engine force, rolling resistance, air drag
 	car = Car(car_mesh, 500.0, 3, 10.0, 10.0);
 	car.pos = vec3(2, 0, 0);
-	floor_mesh = dMesh(floor_points, floor_uvs, floor_normals, floor_triangles, "textures/racetrack.png");
+	floor_mesh = Mesh(floor_points, floor_uvs, floor_normals, floor_triangles, "textures/racetrack.png");
     mat4 large_tree_transform = Scale(2.0);
-	large_tree_mesh = dMesh("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
-	grass_mesh = dMesh("objects/grass.obj", "textures/grass.png", mat4());
-	campfire_mesh = dMesh("objects/campfire.obj", "textures/campfire.png", Scale(0.5f));
-	sleeping_bag_mesh = dMesh("objects/sleeping_bag.obj", "textures/sleeping_bag.png", Translate(0, 0.05, 0));
+	large_tree_mesh = Mesh("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
+	grass_mesh = Mesh("objects/grass.obj", "textures/grass.png", mat4());
+	campfire_mesh = Mesh("objects/campfire.obj", "textures/campfire.png", Scale(0.5f));
+	sleeping_bag_mesh = Mesh("objects/sleeping_bag.obj", "textures/sleeping_bag.png", Translate(0.0f, 0.05f, 0.0f));
     // Setup instance render buffers
 	vector<mat4> large_tree_instance_transforms;
 	for (vec3 pos : large_tree_instance_positions)
@@ -679,12 +645,12 @@ void draw() {
 	shadowPass.set("transform", Scale(60));
 	floor_mesh.render();
 	shadowPass.set("model", campfire_mesh.model);
-	shadowPass.set("transform", Translate(-16.62, 0, 11.89));
+	shadowPass.set("transform", Translate(-16.62f, 0, 11.89f));
 	campfire_mesh.render();
 	shadowPass.set("model", sleeping_bag_mesh.model);
-	shadowPass.set("transform", Translate(-17.86, 0, 10.67) * RotateY(-40.0f));
+	shadowPass.set("transform", Translate(-17.86f, 0, 10.67f) * RotateY(-40.0f));
 	sleeping_bag_mesh.render();
-	shadowPass.set("transform", Translate(-15.92, 0, 10.98) * RotateY(45.0f));
+	shadowPass.set("transform", Translate(-15.92f, 0, 10.98f) * RotateY(45.0f));
 	sleeping_bag_mesh.render();
 	shadowPass.set("model", car.mesh.model);
 	shadowPass.set("transform", car.transform());
@@ -701,23 +667,24 @@ void draw() {
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	glCullFace(GL_BACK);
 	// Draw scene as usual
-    if (camera_loc == 1) { // Third person chase camera
+    if (camera_type == 1) { // Third person chase camera
         vec3 cameraDir = (car.dir + 2 * car.vel) / 2;
-        camera.moveTo(car.pos + vec3(0, 1.5, 0) + -4 * cameraDir);
-        camera.lookAt(car.pos + 4 * cameraDir);
+		camera.loc = car.pos + vec3(0, 1.5f, 0) + -4 * cameraDir;
+		camera.look = car.pos + 4 * cameraDir;
         camera.up = vec3(0, 1, 0);
-        camera.adjustFov(60 + length(car.vel) * 25);
-    } else if (camera_loc == 2) { // Top-down camera
-        camera.moveTo(car.pos + vec3(0, 30, 0));
-        camera.lookAt(car.pos);
+		camera.fov = 60 + length(car.vel) * 25;
+    } else if (camera_type == 2) { // Top-down camera
+		camera.loc = car.pos + vec3(0, 30, 0);
+		camera.look = car.pos;
         camera.up = car.dir;
-        camera.adjustFov(60);
-    } else if (camera_loc == 3) {
-        camera.moveTo(car.pos + vec3(0, 0.5, 0) + car.dir * 0.5);
-        camera.lookAt(car.pos + car.dir * 3 + vec3(0, 0.5, 0));
+		camera.fov = 60;
+    } else if (camera_type == 3) {
+		camera.loc = car.pos + vec3(0, 0.5f, 0) + car.dir * 0.5f;
+		camera.look = car.pos + car.dir * 3 + vec3(0, 0.5f, 0);
         camera.up = vec3(0, 1, 0);
-        camera.adjustFov(60);
+		camera.fov = 60;
     }
+	camera.update();
 	// Rendering main pass
 	mainPass.use();
 	glActiveTexture(GL_TEXTURE1);
@@ -732,12 +699,12 @@ void draw() {
 	mainPass.set("transform", Scale(60));
 	floor_mesh.render();
 	mainPass.set("model", campfire_mesh.model);
-	mainPass.set("transform", Translate(-16.62, 0, 11.89));
+	mainPass.set("transform", Translate(-16.62f, 0, 11.89f));
 	campfire_mesh.render();
 	mainPass.set("model", sleeping_bag_mesh.model);
-	mainPass.set("transform", Translate(-17.86, 0, 10.67) * RotateY(-40.0f));
+	mainPass.set("transform", Translate(-17.86f, 0, 10.67f) * RotateY(-40.0f));
 	sleeping_bag_mesh.render();
-	mainPass.set("transform", Translate(-15.92, 0, 10.98) * RotateY(45.0f));
+	mainPass.set("transform", Translate(-15.92f, 0, 10.98f) * RotateY(45.0f));
 	sleeping_bag_mesh.render();
 	mainPass.set("model", car.mesh.model);
 	mainPass.set("transform", car.transform());
@@ -756,7 +723,7 @@ void draw() {
 	large_tree_mesh.renderInstanced();
 	mainPassInst.set("model", grass_mesh.model);
     grass_mesh.renderInstanced();
-	//dTextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
+	//TextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
 	render_imgui();
 	glFlush();
 }
@@ -800,13 +767,13 @@ int main() {
 	load_icon();
 	setup();
     time_p init_finish = sys_clock::now();
-    double_ms init_dur = init_finish - init_start;
+    float_ms init_dur = init_finish - init_start;
     init_time = init_dur.count();
     init_perf();
     time_p lastSim = sys_clock::now();
 	while (!glfwWindowShouldClose(window)) {
 		time_p cur = sys_clock::now();
-		double_ms since = cur - lastSim;
+		float_ms since = cur - lastSim;
 		dt = 1 / (1000.0f / since.count() / 60.0f);
 		lastSim = cur;
 		update_title(cur);

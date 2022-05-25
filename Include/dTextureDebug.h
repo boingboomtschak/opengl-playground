@@ -43,7 +43,7 @@ const char* quadFrag = R"(
 
 }
 
-namespace dTextureDebug {
+namespace TextureDebug {
     void show(GLuint texture, int x, int y, int w, int h) {
         if (!quadProgram)
             if (!(quadProgram = LinkProgramViaCode(&quadVert, &quadFrag)))

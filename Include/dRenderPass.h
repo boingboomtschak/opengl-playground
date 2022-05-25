@@ -11,9 +11,9 @@
 using std::vector;
 using std::runtime_error;
 
-struct dRenderPass {
+struct RenderPass {
 	GLuint program = 0;
-	dRenderPass() { };
+	RenderPass() { };
 	void loadShaders(const char** vertShaderSrc, const char** fragShaderSrc) {
 		// Compile shaders
 		GLuint vertShader = glCreateShader(GL_VERTEX_SHADER);

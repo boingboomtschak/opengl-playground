@@ -132,7 +132,7 @@ void dParticles::draw(float dt, mat4 vp, GLuint texture, float xzrange) {
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, texture);
                 vec2 uv = vec2(particles[i].pos.x / (xzrange * 2.0f) + 0.5, particles[i].pos.z / (xzrange * 2.0f) + 0.5);
-                float value = rand_float(-0.1, 0.1);
+                float value = rand_float(-0.1f, 0.1f);
                 vec4 color = vec4(value, value, value, 1.0f);
                 SetUniform(particleShader, "useTexture", 1);
                 SetUniform(particleShader, "uv", uv);
