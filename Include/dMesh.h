@@ -98,13 +98,13 @@ struct dMesh {
     void setupInstances(vector<mat4>& transforms) {
         // Clean up previous VArray/VBuffer
         if (transform_VBO) glDeleteBuffers(1, &transform_VBO);
-        num_instances = transforms.size();
+        num_instances = (int)transforms.size();
         size_t size_mat4 = sizeof(mat4);
         // Setup transform buffer in VAO
         glBindVertexArray(VAO);
         glGenBuffers(1, &transform_VBO);
         glBindBuffer(GL_ARRAY_BUFFER, transform_VBO);
-        GLsizei tfSize = transforms.size() * size_mat4;
+        GLsizei tfSize = (GLsizei)(transforms.size() * size_mat4);
         glBufferData(GL_ARRAY_BUFFER, tfSize, NULL, GL_STATIC_DRAW);
         for (size_t i = 0; i < transforms.size(); i++) {
             mat4 t = Transpose(transforms[i]);
