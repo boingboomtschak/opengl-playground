@@ -296,7 +296,6 @@ struct Car {
 	float engine = 0.0; // engine force
 	float roll = 0.0; // rolling resistance
 	float drag = 0.0; // aerodynamic drag constant
-	float last_pt = 0.0f;
 	vec3 pos; // position
 	vec3 dir; // direction
 	vec3 vel; // velocity
@@ -329,6 +328,7 @@ struct Car {
 	void update(float dt) {
 		// Weight update by time delta for consistent effect of updates
 		//   regardless of framerate
+		static float last_pt = 0.0f;
 		last_pt += dt;
 		// Check if space key pressed ("drifting")
 		float drift = (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) ? 0.5f : 1.0f;

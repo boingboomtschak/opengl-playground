@@ -48,12 +48,6 @@ struct RenderPass {
 		if (!program) throw runtime_error("Render pass used before shaders loaded!");
 		if (!active()) glUseProgram(program);
 	}
-	void set(const char* key, int count, mat4* vals) {
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniformMatrix4fv(id, count, true, vals[0][0]);
-	}
 	void checkCompileStatus(GLuint shader, const char* shaderType) {
 		GLint res;
 		glGetShaderiv(shader, GL_COMPILE_STATUS, &res);
