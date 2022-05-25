@@ -48,71 +48,6 @@ struct RenderPass {
 		if (!program) throw runtime_error("Render pass used before shaders loaded!");
 		if (!active()) glUseProgram(program);
 	}
-	void set(const char* key, GLuint val) {
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform1ui(id, val);
-	}
-	void set(const char* key, GLint val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform1i(id, val);
-	};
-	void set(const char* key, GLfloat val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform1f(id, val);
-	};
-	void set(const char* key, vec2 val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform2f(id, val.x, val.y);
-	};
-	void set(const char* key, vec3 val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform3f(id, val.x, val.y, val.z);
-	};
-	void set(const char* key, vec4 val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform4f(id, val.x, val.y, val.z, val.w);
-	};
-	void set(const char* key, int2 val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform2i(id, val.i1, val.i2);
-	};
-	void set(const char* key, int3 val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform3i(id, val.i1, val.i2, val.i3);
-	};
-	void set(const char* key, int4 val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniform4i(id, val.i1, val.i2, val.i3, val.i4);
-	};
-	void set(const char* key, mat3 val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniformMatrix3fv(id, 1, true, &val[0][0]);
-	};
-	void set(const char* key, mat4 val) { 
-		GLint id = glGetUniformLocation(program, key);
-		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else glUniformMatrix4fv(id, 1, true, &val[0][0]);
-	};
 	void set(const char* key, int count, mat4* vals) {
 		GLint id = glGetUniformLocation(program, key);
 		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
@@ -151,6 +86,44 @@ struct RenderPass {
 			throw runtime_error("Error linking program");
 		}
 	}
+	template<typename T>
+	void set(const char* key, T val) {
+		if (GLint id = getId(key); id >= 0) uniform(id, reinterpret_cast<T*>(&val));
+	}
+	template<typename T>
+	void set(const char* key, T* vals, GLsizei count) {
+		if (GLint id = getId(key); id >= 0) uniform(id, reinterpret_cast<T*>(vals), count);
+	}
+private:
+	GLint getId(const char* key) {
+		GLint id = glGetUniformLocation(program, key);
+		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
+		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else return id;
+		return -1;
+	}
+	void uniform(GLint id, GLuint* val) { glUniform1ui(id, *val); }
+	void uniform(GLint id, GLint* val) { glUniform1i(id, *val); }
+	void uniform(GLint id, GLfloat* val) { glUniform1f(id, *val); }
+	void uniform(GLint id, vec2* val) { glUniform2f(id, val->x, val->y); }
+	void uniform(GLint id, vec3* val) { glUniform3f(id, val->x, val->y, val->z); }
+	void uniform(GLint id, vec4* val) { glUniform4f(id, val->x, val->y, val->z, val->w); }
+	void uniform(GLint id, int2* val) { glUniform2i(id, val->i1, val->i2); }
+	void uniform(GLint id, int3* val) { glUniform3i(id, val->i1, val->i2, val->i3); }
+	void uniform(GLint id, int4* val) { glUniform4i(id, val->i1, val->i2, val->i3, val->i4); }
+	void uniform(GLint id, mat3* val) { glUniformMatrix3fv(id, 1, true, (&val)[0][0]); }
+	void uniform(GLint id, mat4* val) { glUniformMatrix4fv(id, 1, true, (&val)[0][0]); }
+	void uniform(GLint id, GLuint* vals, GLsizei count) { glUniform1uiv(id, count, vals); }
+	void uniform(GLint id, GLint* vals, GLsizei count) { glUniform1iv(id, count, vals); }
+	void uniform(GLint id, GLfloat* vals, GLsizei count) { glUniform1fv(id, count, vals); }
+	void uniform(GLint id, vec2* vals, GLsizei count) { glUniform2fv(id, count, &(vals->x)); }
+	void uniform(GLint id, vec3* vals, GLsizei count) { glUniform3fv(id, count, &(vals->x)); }
+	void uniform(GLint id, vec4* vals, GLsizei count) { glUniform4fv(id, count, &(vals->x)); }
+	void uniform(GLint id, int2* vals, GLsizei count) { glUniform2iv(id, count, &(vals->i1)); }
+	void uniform(GLint id, int3* vals, GLsizei count) { glUniform3iv(id, count, &(vals->i1)); }
+	void uniform(GLint id, int4* vals, GLsizei count) { glUniform4iv(id, count, &(vals->i1)); }
+	void uniform(GLint id, mat3* vals, GLsizei count) { glUniformMatrix3fv(id, count, true, (&vals)[0][0]); }
+	void uniform(GLint id, mat4* vals, GLsizei count) { glUniformMatrix4fv(id, count, true, (&vals)[0][0]); }
 };
 
 #endif
