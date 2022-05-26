@@ -1,16 +1,23 @@
-// dColliders.h - Colliders (sphere/AABB/OBB/convex hull)
+// dCollisions.h - Colliders (sphere/AABB/OBB/convex hull) and related utilities
 
 #include <vector>
 #include <algorithm>
 #include <limits>
 #include "VecMat.h"
 #include "GeomUtils.h"
+#include "dCamera.h"
 
 using std::vector;
 using f_lim = std::numeric_limits<float>;
 using std::max;
 
 struct Collider {};
+
+// Forward declaration for collision functions
+struct Sphere;
+struct AABB;
+struct OBB;
+struct ConvexHull;
 
 // Sphere collider
 struct Sphere : Collider {
@@ -64,5 +71,24 @@ struct OBB : Collider {
 struct ConvexHull : Collider {
     ConvexHull(const vector<vec3>& points) {
         
+    }
+};
+
+
+struct Plane {
+    vec3 normal = vec3(0, 1, 0);
+    vec3 point = vec3(0.0f);
+};
+
+struct Frustum {
+    Plane top, bottom, left, right, near, far;
+    Frustum(Camera cam) {
+        vec3 camForward = normalize(cam.look - cam.loc);
+        near = {};
+        far = {};
+        left = {};
+        right = {};
+        top = {};
+        bottom = {};
     }
 };
