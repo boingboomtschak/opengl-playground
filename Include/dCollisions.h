@@ -78,17 +78,38 @@ struct ConvexHull : Collider {
 struct Plane {
     vec3 normal = vec3(0, 1, 0);
     vec3 point = vec3(0.0f);
+    float distance(vec3 pt) {
+        return normal.x * pt.x + normal.y * pt.y + normal.z * pt.z + dot(-pt, normal);
+    }
+    bool onOrBehindPlane(vec3 pt) {
+        return dot(normal, pt - point) <= 0;
+    }
+    bool onOrBehindPlane(vec3 center, float radius) {
+        return distance(center) <= radius || onOrBehindPlane(center);
+    }
 };
 
 struct Frustum {
     Plane top, bottom, left, right, near, far;
     Frustum(Camera cam) {
-        vec3 camForward = normalize(cam.look - cam.loc);
-        near = {};
-        far = {};
-        left = {};
-        right = {};
-        top = {};
-        bottom = {};
+        const float aspect = cam.width / cam.height;
+        const float halfX = cam.zFar * tanf(cam.fov * 0.5f);
+        const float halfY = halfX / aspect;
+        const vec3 camForward = normalize(cam.look - cam.loc);
+        const vec3 camLeft = cross(cam.up, camForward);
+        const vec3 farMiddle = cam.zFar * camForward;
+        near = { -camForward, cam.pos + cam.zNear * camForward };
+        far = { camForward, cam.pos + farMiddle };
+        left = { normalize(cross(cam.up, farMiddle + camLeft * halfX)), cam.pos };
+        right = { normalize(cross(cam.up, farMiddle - camLeft * halfX)), cam.pos };
+        top = { normalize(cross(camLeft, farMiddle + cam.up * halfY)), cam.pos };
+        bottom = { normalize(cross(camLeft, farMiddle - cam.up * halfY)), cam.pos };
+    }
+    bool inFrustum(vec3 point) {
+        return top.onOrBehindPlane(point) && bottom.onOrBehindPlane(point) && left.onOrBehindPlane(point) && right.onOrBehindPlane(point) && near.onOrBehindPlane(point) && far.onOrBehindPlane(point);
+    }
+    bool inFrustum(mat4& transform, Sphere collider) {
+        vec3 tf_center (transform * vec4(collider.center, 1));
+        return top.onOrBehindPlane(tf_center, collider.radius) && bottom.onOrBehindPlane(tf_center, collider.radius) && left.onOrBehindPlane(tf_center, collider.radius) && right.onOrBehindPlane(tf_center, collider.radius) && near.onOrBehindPlane(tf_center, collider.radius) && far.onOrBehindPlane(tf_center, collider.radius);
     }
 };
