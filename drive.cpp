@@ -226,6 +226,7 @@ vector<vec3> large_tree_instance_positions {
 	{30.01f, 0, 21.32f}, {27.01f, 0, 24.33f},
 };
 vector<mat4> large_tree_instance_transforms;
+int num_culled_large_trees = 0;
 
 Mesh grass_mesh;
 vector<vec3> grass_instance_positions {
@@ -292,6 +293,7 @@ vector<vec3> grass_instance_positions {
 	{19.42f, 0, 37.20f}
 };
 vector<mat4> grass_instance_transforms;
+int num_culled_grass = 0;
 
 Mesh campfire_mesh;
 Mesh sleeping_bag_mesh;
@@ -485,10 +487,12 @@ void show_performance_window() {
 	window_pos_pivot.x = 1.0f;
 	window_pos_pivot.y = 0.0f;
 	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
-	ImGui::SetNextWindowSize(ImVec2(work_size.x / 6.0f, 0.0f));
+	ImGui::SetNextWindowSize(ImVec2(work_size.x / 4.0f, 0.0f));
 	ImGui::SetNextWindowBgAlpha(0.35f);
 	if (ImGui::Begin("Performance", NULL, window_flags)) {
-        ImGui::Text("Initialization Time: %.2f ms", init_time);
+        ImGui::Text("Initialization time: %.2f ms", init_time);
+		ImGui::Text("Trees in view: %d / %d", num_culled_large_trees, (int)large_tree_instance_transforms.size());
+		ImGui::Text("Grass in view: %d / %d", num_culled_grass, (int)grass_instance_transforms.size());
         ImGui::Separator();
         static ImPlotFlags plot_flags = ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText;
         ImPlot::PushStyleColor(ImPlotCol_FrameBg, {0.0f, 0.0f, 0.0f, 0.3f});
@@ -552,13 +556,6 @@ void render_imgui() {
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-vector<mat4> cull_instances(Collider c, vector<mat4>& instance_transforms) {
-	// TODO
-	vector<mat4> culled;
-
-	return culled;
-}
-
 void setup() {
 	// Initialize GLFW callbacks
 	glfwSetKeyCallback(window, Keyboard);
@@ -596,7 +593,7 @@ void setup() {
 	floor_mesh = Mesh(floor_points, floor_uvs, floor_normals, floor_triangles, "textures/racetrack.png");
     mat4 large_tree_transform = Scale(2.0);
 	large_tree_mesh = Mesh("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
-	grass_mesh = Mesh("objects/grass.obj", "textures/grass.png", mat4());
+	grass_mesh = Mesh("objects/old_grass.obj", "textures/grass.png", mat4());
 	campfire_mesh = Mesh("objects/campfire.obj", "textures/campfire.png", Scale(0.5f));
 	sleeping_bag_mesh = Mesh("objects/sleeping_bag.obj", "textures/sleeping_bag.png", Translate(0.0f, 0.05f, 0.0f));
     // Setup instance render buffers
@@ -608,6 +605,9 @@ void setup() {
 		grass_instance_transforms.push_back(Translate(pos) * RotateY(rand_float(-180.0f, 180.0f)));
 	grass_mesh.setupInstanceBuffer(grass_instance_transforms.size());
 	grass_mesh.loadInstances(grass_instance_transforms); // TODO - remove and fill transforms after cull each frame
+	// Setup colliders
+	large_tree_mesh.createCollider<Sphere>();
+	grass_mesh.createCollider<Sphere>();
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
 		dSkybox skybox;
@@ -643,6 +643,14 @@ void cleanup() {
 }
 
 void draw() {
+	// Cull instances out of frustum, update instances
+	Frustum frustum(camera);
+	vector<mat4> culled_large_trees = frustum.cull_instances(large_tree_mesh.collider, large_tree_instance_transforms);
+	large_tree_mesh.loadInstances(culled_large_trees);
+	num_culled_large_trees = (int)culled_large_trees.size();
+	vector<mat4> culled_grass = frustum.cull_instances(grass_mesh.collider, grass_instance_transforms);
+	grass_mesh.loadInstances(culled_grass);
+	num_culled_grass = (int)culled_grass.size();
 	// Draw scene to depth buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
 	glViewport(0, 0, SHADOW_DIM, SHADOW_DIM);

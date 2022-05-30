@@ -1,17 +1,27 @@
 // dCollisions.h - Colliders (sphere/AABB/OBB/convex hull) and related utilities
 
+#ifndef DCOLLISIONS_HDR
+#define DCOLLISIONS_HDR
+
 #include <vector>
 #include <algorithm>
 #include <limits>
+#include <stdexcept>
 #include "VecMat.h"
 #include "GeomUtils.h"
 #include "dCamera.h"
 
 using std::vector;
+using std::runtime_error;
 using f_lim = std::numeric_limits<float>;
 using std::max;
 
-struct Collider {};
+enum class ColliderType { None, Sphere, AABB, OBB, ConvexHull };
+
+struct Collider {
+    ColliderType type = ColliderType::None;
+    vec3 center;
+};
 
 // Forward declaration for collision functions
 struct Sphere;
@@ -24,12 +34,17 @@ struct Sphere : Collider {
     vec3 center = vec3(0.0f);
     float radius = 0.0f;
     Sphere(const vector<vec3>& points) {
-        vec3 _min = vec3(f_lim::min());
-        vec3 _max = vec3(f_lim::max());
-        for (const vec3 pt : points) 
-            for (int i = 0; i < 3; i++)
-                if (pt[i] < _min[i]) _min[i] = pt[i];
-                else if (pt[i] > _max[i]) _max[i] = pt[i];
+        type = ColliderType::Sphere;
+        vec3 _min = vec3(f_lim::max());
+        vec3 _max = vec3(-f_lim::max());
+        for (const vec3 pt : points) {
+            if (pt.x < _min.x) _min.x = pt.x;
+            if (pt.y < _min.y) _min.y = pt.y;
+            if (pt.z < _min.z) _min.z = pt.z;
+            if (pt.x > _max.x) _max.x = pt.x;
+            if (pt.y > _max.y) _max.y = pt.y;
+            if (pt.z > _max.z) _max.z = pt.z;
+        }
         center = (_min + _max) / 0.5;
         radius = max({ 
             center.x - _min.x, 
@@ -93,7 +108,7 @@ struct Frustum {
     Plane topFace, bottomFace, leftFace, rightFace, nearFace, farFace;
     Frustum(Camera cam) {
         const float aspect = cam.width / cam.height;
-        const float halfX = cam.zFar * tanf(cam.fov * 0.5f);
+        const float halfX = cam.zFar * tanf((cam.fov * DegreesToRadians)* 0.5f);
         const float halfY = halfX / aspect;
         const vec3 camForward = normalize(cam.look - cam.loc);
         const vec3 camLeft = cross(cam.up, camForward);
@@ -108,8 +123,25 @@ struct Frustum {
     bool inFrustum(vec3 point) {
         return topFace.onOrBehindPlane(point) && bottomFace.onOrBehindPlane(point) && leftFace.onOrBehindPlane(point) && rightFace.onOrBehindPlane(point) && nearFace.onOrBehindPlane(point) && farFace.onOrBehindPlane(point);
     }
-    bool inFrustum(mat4& transform, Sphere collider) {
-        vec3 tf_center (transform * vec4(collider.center, 1));
-        return topFace.onOrBehindPlane(tf_center, collider.radius) && bottomFace.onOrBehindPlane(tf_center, collider.radius) && leftFace.onOrBehindPlane(tf_center, collider.radius) && rightFace.onOrBehindPlane(tf_center, collider.radius) && nearFace.onOrBehindPlane(tf_center, collider.radius) && farFace.onOrBehindPlane(tf_center, collider.radius);
+    bool inFrustum(mat4& transform, Sphere* collider) {
+        vec3 tf_center (transform * vec4(collider->center, 1));
+        return topFace.onOrBehindPlane(tf_center, collider->radius) 
+            && bottomFace.onOrBehindPlane(tf_center, collider->radius) 
+            && leftFace.onOrBehindPlane(tf_center, collider->radius) 
+            && rightFace.onOrBehindPlane(tf_center, collider->radius) 
+            && nearFace.onOrBehindPlane(tf_center, collider->radius) 
+            && farFace.onOrBehindPlane(tf_center, collider->radius);
+    }
+    vector<mat4> cull_instances(Collider* collider, vector<mat4>& instance_transforms) {
+        vector<mat4> culled;
+        for (mat4& tf : instance_transforms)
+            if (collider->type == ColliderType::Sphere) {
+                if (inFrustum(tf, (Sphere*)collider)) { culled.push_back(tf); }
+            } else {
+                throw runtime_error("Invalid frustum cull collider type!");
+            }
+        return culled;
     }
 };
+
+#endif

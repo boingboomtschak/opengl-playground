@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include "glad.h"
 #include "VecMat.h"
+#include "dCollisions.h"
 #include "dMisc.h"
 
 using std::vector;
@@ -27,6 +28,7 @@ Render passes using it should:
 */
 
 struct Mesh {
+    Collider* collider = nullptr;
     mat4 model = mat4();
     GLuint VAO = 0;
     GLuint VBO = 0;
@@ -87,6 +89,7 @@ struct Mesh {
         if (EBO) glDeleteBuffers(1, &EBO);
         if (texture) glDeleteTextures(1, &texture);
         if (transform_VBO) glDeleteBuffers(1, &transform_VBO);
+        if (collider) delete collider;
     }
     void render() {
         glBindVertexArray(VAO);
@@ -132,6 +135,8 @@ struct Mesh {
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
+    template <typename T>
+    void createCollider() { collider = new T(objData.points); }
 };
 
 #endif
