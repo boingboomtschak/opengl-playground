@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include "VecMat.h"
 #include "GeomUtils.h"
+#include "dCollisions.h"
 #include "dCamera.h"
 #include "dRenderPass.h"
 #include "dMesh.h"
@@ -224,6 +225,8 @@ vector<vec3> large_tree_instance_positions {
 	{53.67f, 0, -44.20f}, {35.25f, 0, -35.85f}, {25.01f, 0, 17.04f}, {27.80f, 0, 18.07f}, 
 	{30.01f, 0, 21.32f}, {27.01f, 0, 24.33f},
 };
+vector<mat4> large_tree_instance_transforms;
+
 Mesh grass_mesh;
 vector<vec3> grass_instance_positions {
 	{7.79f, 0, -5.38f}, {5.27f, 0, -8.41f}, {-6.32f, 0, -8.58f}, {-9.40f, 0, -5.62f}, 
@@ -288,6 +291,7 @@ vector<vec3> grass_instance_positions {
 	{32.21f, 0, 32.18f}, {32.75f, 0, 36.64f}, {30.44f, 0, 40.23f}, {23.81f, 0, 41.49f}, 
 	{19.42f, 0, 37.20f}
 };
+vector<mat4> grass_instance_transforms;
 
 Mesh campfire_mesh;
 Mesh sleeping_bag_mesh;
@@ -548,6 +552,13 @@ void render_imgui() {
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
+vector<mat4> cull_instances(Collider c, vector<mat4>& instance_transforms) {
+	// TODO
+	vector<mat4> culled;
+
+	return culled;
+}
+
 void setup() {
 	// Initialize GLFW callbacks
 	glfwSetKeyCallback(window, Keyboard);
@@ -589,14 +600,14 @@ void setup() {
 	campfire_mesh = Mesh("objects/campfire.obj", "textures/campfire.png", Scale(0.5f));
 	sleeping_bag_mesh = Mesh("objects/sleeping_bag.obj", "textures/sleeping_bag.png", Translate(0.0f, 0.05f, 0.0f));
     // Setup instance render buffers
-	vector<mat4> large_tree_instance_transforms;
 	for (vec3 pos : large_tree_instance_positions)
 		large_tree_instance_transforms.push_back(Translate(pos) * RotateY(rand_float(-180.0f, 180.0f)));
-	large_tree_mesh.setupInstances(large_tree_instance_transforms);
-	vector<mat4> grass_instance_transforms;
+	large_tree_mesh.setupInstanceBuffer(large_tree_instance_transforms.size());
+	large_tree_mesh.loadInstances(large_tree_instance_transforms); // TODO - remove and fill transforms after cull each frame
 	for (vec3 pos : grass_instance_positions)
 		grass_instance_transforms.push_back(Translate(pos) * RotateY(rand_float(-180.0f, 180.0f)));
-    grass_mesh.setupInstances(grass_instance_transforms);
+	grass_mesh.setupInstanceBuffer(grass_instance_transforms.size());
+	grass_mesh.loadInstances(grass_instance_transforms); // TODO - remove and fill transforms after cull each frame
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
 		dSkybox skybox;

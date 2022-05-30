@@ -35,6 +35,7 @@ struct Mesh {
     GLuint texture = 0;
     ObjData objData;
     GLsizei num_instances = 0;
+    GLsizei max_instances = 0;
     Mesh() { };
     Mesh(vector<vec3> points, vector<vec2> uvs, vector<vec3> normals, vector<int3> indices, string texFilename, bool texMipmap = true) {
         objData.points = points;
@@ -95,30 +96,35 @@ struct Mesh {
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
-    void setupInstances(vector<mat4>& transforms) {
+    void setupInstanceBuffer(GLsizei max_inst) {
         // Clean up previous VArray/VBuffer
         if (transform_VBO) glDeleteBuffers(1, &transform_VBO);
-        num_instances = (GLsizei)transforms.size();
-        size_t size_mat4 = sizeof(mat4);
+        max_instances = max_inst;
         // Setup transform buffer in VAO
         glBindVertexArray(VAO);
         glGenBuffers(1, &transform_VBO);
         glBindBuffer(GL_ARRAY_BUFFER, transform_VBO);
-        GLsizei tfSize = (GLsizei)(transforms.size() * size_mat4);
-        glBufferData(GL_ARRAY_BUFFER, tfSize, NULL, GL_STATIC_DRAW);
-        for (size_t i = 0; i < transforms.size(); i++) {
-            mat4 t = Transpose(transforms[i]);
-            glBufferSubData(GL_ARRAY_BUFFER, i * size_mat4, size_mat4, &t);
-        }
+        glBufferData(GL_ARRAY_BUFFER, (GLsizei)(max_instances * sizeof(mat4)), NULL, GL_DYNAMIC_DRAW);
         for (int i = 0; i < 4; i++) {
             glEnableVertexAttribArray(i + 3);
             glVertexAttribPointer(i + 3, 4, GL_FLOAT, GL_FALSE, sizeof(mat4), (GLvoid*)(i * sizeof(vec4)));
             glVertexAttribDivisor(i + 3, 1);
-        } 
+        }
         glBindVertexArray(0);
     }
+    void loadInstances(vector<mat4>& transforms) {
+        // Update num instances
+        num_instances = (GLsizei)transforms.size();
+        // Copy transforms to VBO
+        glBindBuffer(GL_ARRAY_BUFFER, transform_VBO);
+        for (size_t i = 0; i < transforms.size(); i++) {
+            mat4 t = Transpose(transforms[i]);
+            glBufferSubData(GL_ARRAY_BUFFER, i * sizeof(mat4), sizeof(mat4), &t);
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
     void renderInstanced() {
-        if (num_instances == 0) return;
+        if (!transform_VBO) return;
         glBindVertexArray(VAO);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);

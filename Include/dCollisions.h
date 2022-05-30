@@ -90,7 +90,7 @@ struct Plane {
 };
 
 struct Frustum {
-    Plane top, bottom, left, right, near, far;
+    Plane topFace, bottomFace, leftFace, rightFace, nearFace, farFace;
     Frustum(Camera cam) {
         const float aspect = cam.width / cam.height;
         const float halfX = cam.zFar * tanf(cam.fov * 0.5f);
@@ -98,18 +98,18 @@ struct Frustum {
         const vec3 camForward = normalize(cam.look - cam.loc);
         const vec3 camLeft = cross(cam.up, camForward);
         const vec3 farMiddle = cam.zFar * camForward;
-        near = { -camForward, cam.pos + cam.zNear * camForward };
-        far = { camForward, cam.pos + farMiddle };
-        left = { normalize(cross(cam.up, farMiddle + camLeft * halfX)), cam.pos };
-        right = { normalize(cross(cam.up, farMiddle - camLeft * halfX)), cam.pos };
-        top = { normalize(cross(camLeft, farMiddle + cam.up * halfY)), cam.pos };
-        bottom = { normalize(cross(camLeft, farMiddle - cam.up * halfY)), cam.pos };
+        nearFace = { -camForward, cam.loc + cam.zNear * camForward };
+        farFace = { camForward, cam.loc + farMiddle };
+        leftFace = { normalize(cross(cam.up, farMiddle + camLeft * halfX)), cam.loc };
+        rightFace = { normalize(cross(cam.up, farMiddle - camLeft * halfX)), cam.loc };
+        topFace = { normalize(cross(camLeft, farMiddle + cam.up * halfY)), cam.loc };
+        bottomFace = { normalize(cross(camLeft, farMiddle - cam.up * halfY)), cam.loc };
     }
     bool inFrustum(vec3 point) {
-        return top.onOrBehindPlane(point) && bottom.onOrBehindPlane(point) && left.onOrBehindPlane(point) && right.onOrBehindPlane(point) && near.onOrBehindPlane(point) && far.onOrBehindPlane(point);
+        return topFace.onOrBehindPlane(point) && bottomFace.onOrBehindPlane(point) && leftFace.onOrBehindPlane(point) && rightFace.onOrBehindPlane(point) && nearFace.onOrBehindPlane(point) && farFace.onOrBehindPlane(point);
     }
     bool inFrustum(mat4& transform, Sphere collider) {
         vec3 tf_center (transform * vec4(collider.center, 1));
-        return top.onOrBehindPlane(tf_center, collider.radius) && bottom.onOrBehindPlane(tf_center, collider.radius) && left.onOrBehindPlane(tf_center, collider.radius) && right.onOrBehindPlane(tf_center, collider.radius) && near.onOrBehindPlane(tf_center, collider.radius) && far.onOrBehindPlane(tf_center, collider.radius);
+        return topFace.onOrBehindPlane(tf_center, collider.radius) && bottomFace.onOrBehindPlane(tf_center, collider.radius) && leftFace.onOrBehindPlane(tf_center, collider.radius) && rightFace.onOrBehindPlane(tf_center, collider.radius) && nearFace.onOrBehindPlane(tf_center, collider.radius) && farFace.onOrBehindPlane(tf_center, collider.radius);
     }
 };
