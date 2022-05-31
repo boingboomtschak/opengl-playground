@@ -43,6 +43,7 @@ const GLFWvidmode* videoModes;
 GLFWvidmode currentVidMode;
 int videoModesCount;
 bool fullscreen = false;
+bool frustumCulling = true;
 float dt;
 
 const int SHADOW_DIM = 16384;
@@ -184,7 +185,7 @@ int cur_skybox = 0;
 
 dParticles particleSystem;
 
-Camera camera(win_width, win_height, 60, 0.5f, 120.0f);
+Camera camera(win_width, win_height, 60, 0.5f, 80.0f);
 
 int camera_type = 1;
 // 1 - Third person chase camera
@@ -223,7 +224,17 @@ vector<vec3> large_tree_instance_positions {
 	{53.33f, 0, 37.18f}, {56.60f, 0, 29.23f}, {50.68f, 0, 23.18f}, {47.43f, 0, 17.28f}, 
 	{53.80f, 0, 13.17f}, {57.79f, 0, 2.03f}, {53.03f, 0, -7.96f}, {54.85f, 0, -20.03f}, 
 	{53.67f, 0, -44.20f}, {35.25f, 0, -35.85f}, {25.01f, 0, 17.04f}, {27.80f, 0, 18.07f}, 
-	{30.01f, 0, 21.32f}, {27.01f, 0, 24.33f},
+	{30.01f, 0, 21.32f}, {27.01f, 0, 24.33f}, {-7.86f, 0, -15.65f}, {-14.89f, 0, -17.18f}, 
+	{-24.90f, 0, -20.11f}, {-31.91f, 0, -20.91f}, {-57.89f, 0, 9.50f}, {-59.31f, 0, 19.05f},
+	{-58.51f, 0, 25.29f}, {-56.70f, 0, 35.26f}, {-50.98f, 0, 38.97f}, {-46.18f, 0, 33.34f}, 
+	{-38.07f, 0, 26.96f}, {-34.56f, 0, 31.28f}, {-34.16f, 0, 37.87f}, {-36.81f, 0, 42.84f}, 
+	{-41.31f, 0, 42.38f}, {-32.40f, 0, 49.67f}, {-23.46f, 0, 57.46f}, {-14.06f, 0, 56.53f}, 
+	{-2.28f, 0, 53.18f}, {6.61f, 0, 50.97f}, {14.48f, 0, 53.34f}, {19.61f, 0, 54.60f}, 
+	{27.19f, 0, 56.32f}, {45.39f, 0, 57.37f}, {51.48f, 0, 48.51f}, {53.57f, 0, 42.74f}, 
+	{55.55f, 0, 36.85f}, {54.38f, 0, 26.52f}, {55.33f, 0, 19.61f}, {54.74f, 0, 6.12f}, 
+	{49.12f, 0, -5.46f}, {46.48f, 0, -14.67f}, {56.58f, 0, -27.82f}, {54.64f, 0, -40.71f}, 
+	{49.18f, 0, -45.38f}, {40.86f, 0, -49.48f}, {25.39f, 0, -49.89f}, {13.77f, 0, -49.16f}, 
+	{-2.02f, 0, -51.96f},
 };
 vector<mat4> large_tree_instance_transforms;
 int num_culled_large_trees = 0;
@@ -290,7 +301,47 @@ vector<vec3> grass_instance_positions {
 	{9.49f, 0, 57.30f}, {15.74f, 0, 54.92f}, {24.05f, 0, 41.10f}, {25.94f, 0, 36.21f}, 
 	{27.32f, 0, 32.39f}, {29.15f, 0, 27.36f}, {32.31f, 0, 21.46f}, {35.16f, 0, 24.48f}, 
 	{32.21f, 0, 32.18f}, {32.75f, 0, 36.64f}, {30.44f, 0, 40.23f}, {23.81f, 0, 41.49f}, 
-	{19.42f, 0, 37.20f}
+	{19.42f, 0, 37.20f}, {-33.55f, 0, 14.57f}, {-27.67f, 0, 14.98f}, {-29.79f, 0, 14.04f}, 
+	{-32.18f, 0, 13.55f}, {-35.26f, 0, 13.33f}, {-38.98f, 0, 13.40f}, {-44.59f, 0, 12.91f}, 
+	{-46.66f, 0, 7.57f}, {-44.61f, 0, 5.95f}, {-40.08f, 0, 5.57f}, {-27.39f, 0, -5.66f}, 
+	{-26.85f, 0, -9.52f}, {-26.07f, 0, -12.88f}, {-24.40, 0, -16.34f}, {-23.27f, 0, -20.96f}, 
+	{-27.79f, 0, -23.86f}, {-29.43f, 0, -21.98f}, {-30.33f, 0, -18.65f}, {-30.18f, 0, -15.58f}, 
+	{-31.41f, 0, -13.76f}, {-34.75f, 0, -12.85f}, {-36.49f, 0, -14.15f}, {-36.92f, 0, -18.37f}, 
+	{-36.22f, 0, -20.76f}, {-34.27f, 0, -22.29f}, {-32.51f, 0, -24.84f}, {-31.13f, 0, -26.86f}, 
+	{-29.61f, 0, -29.13f}, {-28.76f, 0, -32.15f}, {-28.27f, 0, -34.72f}, {-26.58f, 0, -36.07f}, 
+	{-22.98f, 0, -35.24f}, {-22.26f, 0, -33.07f}, {-21.23f, 0, -29.38f}, {-18.45f, 0, -26.65f}, 
+	{-13.72f, 0, -25.51f}, {-10.28f, 0, -25.43f}, {-5.84f, 0, -27.94f}, {-6.24f, 0, -32.47f}, 
+	{-6.26f, 0, -35.59f}, {-10.39f, 0, -36.67f}, {-14.25f, 0, -36.43f}, {-17.40f, 0, -36.38f}, 
+	{-22.20f, 0, -36.52f}, {-27.87f, 0, -36.81f}, {-36.01f, 0, -36.67f}, {-17.48f, 0, -18.48f}, 
+	{-21.01f, 0, -21.98f}, {-25.72f, 0, -23.66f}, {-28.87f, 0, -19.30f}, {-28.49f, 0, -13.54f}, 
+	{-26.28f, 0, -10.59f}, {-22.39f, 0, -8.57f}, {-16.60f, 0, -5.67f}, {-13.35f, 0, -4.84f}, 
+	{-7.64f, 0, -6.07f}, {-6.41f, 0, -11.05f}, {-9.05f, 0, -14.32f}, {-12.80f, 0, -16.71f}, 
+	{-15.39f, 0, -19.39f}, {-16.52f, 0, -22.11f}, {-15.72f, 0, -27.53f}, {-18.79f, 0, -34.71f}, 
+	{-16.88f, 0, -23.59f}, {-14.52f, 0, -20.90f}, {-12.08f, 0, -16.92f}, {-7.35f, 0, -12.63f}, 
+	{-5.75f, 0, -17.78f}, {-5.84f, 0, -21.74f}, {6.76f, 0, -47.18f}, {7.78f, 0, -50.94f}, 
+	{4.30f, 0, -54.88f}, {-0.90f, 0, -56.83f}, {-6.28f, 0, -58.10f}, {-10.86f, 0, -54.56f}, 
+	{-8.83f, 0, -50.10f}, {-19.19f, 0, -56.78f}, {-16.15f, 0, -58.57f}, {-12.47f, 0, -49.55f}, 
+	{4.79f, 0, -12.65f}, {9.41f, 0, -10.75f}, {10.83f, 0, -6.25f}, {4.76f, 0, -11.12f}, 
+	{3.96f, 0, -20.00f}, {4.69f, 0, -27.87f}, {5.04f, 0, -33.21f}, {10.44f, 0, -36.83f}, 
+	{27.54f, 0, -35.99f}, {36.46f, 0, -21.07f}, {36.40f, 0, -17.21f}, {35.67f, 0, -11.70f}, 
+	{35.96f, 0, -4.80f}, {29.95f, 0, -6.10f}, {24.39f, 0, -5.66f}, {18.90f, 0, -5.31f}, 
+	{11.17f, 0, -5.14f}, {-7.37f, 0, 12.00f}, {-6.71f, 0, 15.04f}, {-5.78f, 0, 19.91f}, 
+	{-5.51f, 0, 24.88f}, {-5.64f, 0, 30.31f}, {-5.64f, 0, 35.28f}, {-5.81f, 0, 39.78f}, 
+	{-10.05f, 0, 42.11f}, {-13.67f, 0, 41.83f}, {-20.10f, 0, 42.18f}, {-22.22f, 0, 37.72f}, 
+	{-20.33f, 0, 34.77f}, {-21.37f, 0, 31.31f}, {-20.09f, 0, 26.05f}, {-20.46f, 0, 20.12f}, 
+	{-39.62f, 0, 15.22f}, {-42.69f, 0, 12.81f}, {-42.90f, 0, 9.50f}, {-56.69f, 0, 21.79f}, 
+	{-56.43f, 0, 24.90f}, {-52.67f, 0, 26.47f}, {-48.11f, 0, 26.70f}, {-44.68f, 0, 28.87f}, 
+	{-41.58f, 0, 26.45f}, {-38.73f, 0, 24.67f}, {-34.97f, 0, 29.57f}, {-34.64f, 0, 37.02f}, 
+	{-33.14f, 0, 46.21f}, {-25.28f, 0, 56.25f}, {-9.07f, 0, 56.45f}, {-2.69f, 0, 57.27f}, 
+	{3.69f, 0, 58.65f}, {16.90f, 0, 58.91f}, {27.23f, 0, 58.25f}, {36.18f, 0, 56.12f}, 
+	{43.06f, 0, 52.91f}, {48.84f, 0, 48.37f}, {52.10f, 0, 44.23f}, {55.49f, 0, 39.55f}, 
+	{56.85f, 0, 34.40f}, {54.39f, 0, 28.08f}, {52.06f, 0, 21.57f}, {51.39f, 0, 15.64f}, 
+	{52.38f, 0, 6.39f}, {53.44f, 0, 0.50f}, {55.45f, 0, -9.32f}, {56.91f, 0, -18.42f}, 
+	{57.29f, 0, -25.93f}, {54.85f, 0, -37.79f}, {51.45f, 0, -44.24f}, {43.59f, 0, -49.36f}, 
+	{36.16f, 0, -52.86f}, {28.66f, 0, -56.44f}, {22.47f, 0, -57.88f}, {17.48f, 0, -56.27f}, 
+	{18.20f, 0, -48.93f}, {26.47f, 0, -47.31f}, {34.46f, 0, -47.86f}, {42.41f, 0, -51.44f}, 
+	{49.29f, 0, -36.01f}, {47.09f, 0, -27.21f}, {49.26f, 0, -18.03f}, {56.10f, 0, -4.74f}, 
+	{56.14f, 0, -4.00f}, {53.54f, 0, 1.52f}, {47.41f, 0, 7.95f}, {46.24f, 0, 21.65f},
 };
 vector<mat4> grass_instance_transforms;
 int num_culled_grass = 0;
@@ -403,7 +454,7 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
         if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
             showPerformance = !showPerformance;
         } else {
-            printf("{%.2ff, %.0ff, %.2ff}, ", car.pos.x, car.pos.y, car.pos.z);
+            printf("{%.2ff, %.0f, %.2ff}, ", car.pos.x, car.pos.y, car.pos.z);
         }
     }
     if (key == GLFW_KEY_1 && action == GLFW_PRESS)
@@ -531,6 +582,12 @@ void render_imgui() {
 			}
 			ImGui::EndCombo();
 		}
+		if (ImGui::Checkbox("Frustum Culling", &frustumCulling)) {
+			large_tree_mesh.loadInstances(large_tree_instance_transforms);
+			num_culled_large_trees = large_tree_instance_transforms.size();
+			grass_mesh.loadInstances(grass_instance_transforms);
+			num_culled_grass = grass_instance_transforms.size();
+		}
 		ImGui::EndMenu();
 	}
     if (ImGui::BeginMenu("Settings")) {
@@ -593,18 +650,18 @@ void setup() {
 	floor_mesh = Mesh(floor_points, floor_uvs, floor_normals, floor_triangles, "textures/racetrack.png");
     mat4 large_tree_transform = Scale(2.0);
 	large_tree_mesh = Mesh("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
-	grass_mesh = Mesh("objects/old_grass.obj", "textures/grass.png", mat4());
+	grass_mesh = Mesh("objects/grass.obj", "textures/grass.png", mat4());
 	campfire_mesh = Mesh("objects/campfire.obj", "textures/campfire.png", Scale(0.5f));
 	sleeping_bag_mesh = Mesh("objects/sleeping_bag.obj", "textures/sleeping_bag.png", Translate(0.0f, 0.05f, 0.0f));
     // Setup instance render buffers
 	for (vec3 pos : large_tree_instance_positions)
 		large_tree_instance_transforms.push_back(Translate(pos) * RotateY(rand_float(-180.0f, 180.0f)));
 	large_tree_mesh.setupInstanceBuffer(large_tree_instance_transforms.size());
-	large_tree_mesh.loadInstances(large_tree_instance_transforms); // TODO - remove and fill transforms after cull each frame
+	large_tree_mesh.loadInstances(large_tree_instance_transforms); 
 	for (vec3 pos : grass_instance_positions)
 		grass_instance_transforms.push_back(Translate(pos) * RotateY(rand_float(-180.0f, 180.0f)));
 	grass_mesh.setupInstanceBuffer(grass_instance_transforms.size());
-	grass_mesh.loadInstances(grass_instance_transforms); // TODO - remove and fill transforms after cull each frame
+	grass_mesh.loadInstances(grass_instance_transforms); 
 	// Setup colliders
 	large_tree_mesh.createCollider<Sphere>();
 	grass_mesh.createCollider<Sphere>();
@@ -643,14 +700,35 @@ void cleanup() {
 }
 
 void draw() {
-	// Cull instances out of frustum, update instances
-	Frustum frustum(camera);
-	vector<mat4> culled_large_trees = frustum.cull_instances(large_tree_mesh.collider, large_tree_instance_transforms);
-	large_tree_mesh.loadInstances(culled_large_trees);
-	num_culled_large_trees = (int)culled_large_trees.size();
-	vector<mat4> culled_grass = frustum.cull_instances(grass_mesh.collider, grass_instance_transforms);
-	grass_mesh.loadInstances(culled_grass);
-	num_culled_grass = (int)culled_grass.size();
+	// Update camera
+	if (camera_type == 1) { // Third person chase camera
+		vec3 cameraDir = (car.dir + 2 * car.vel) / 2;
+		camera.loc = car.pos + vec3(0, 1.5f, 0) + -4 * cameraDir;
+		camera.look = car.pos + 4 * cameraDir;
+		camera.up = vec3(0, 1, 0);
+		camera.fov = 60 + length(car.vel) * 25;
+	} else if (camera_type == 2) { // Top-down camera
+		camera.loc = car.pos + vec3(0, 30, 0);
+		camera.look = car.pos;
+		camera.up = car.dir;
+		camera.fov = 60;
+	} else if (camera_type == 3) {
+		camera.loc = car.pos + vec3(0, 0.5f, 0) + car.dir * 0.5f;
+		camera.look = car.pos + car.dir * 3 + vec3(0, 0.5f, 0);
+		camera.up = vec3(0, 1, 0);
+		camera.fov = 60;
+	}
+	camera.update();
+	if (frustumCulling) {
+		// Cull instances out of frustum, update instances
+		Frustum frustum(camera);
+		vector<mat4> culled_large_trees = frustum.cull_instances(large_tree_mesh.collider, large_tree_instance_transforms);
+		large_tree_mesh.loadInstances(culled_large_trees);
+		num_culled_large_trees = (int)culled_large_trees.size();
+		vector<mat4> culled_grass = frustum.cull_instances(grass_mesh.collider, grass_instance_transforms);
+		grass_mesh.loadInstances(culled_grass);
+		num_culled_grass = (int)culled_grass.size();
+	}
 	// Draw scene to depth buffer
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
 	glViewport(0, 0, SHADOW_DIM, SHADOW_DIM);
@@ -687,25 +765,6 @@ void draw() {
 	glViewport(0, 0, win_width, win_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	glCullFace(GL_BACK);
-	// Draw scene as usual
-    if (camera_type == 1) { // Third person chase camera
-        vec3 cameraDir = (car.dir + 2 * car.vel) / 2;
-		camera.loc = car.pos + vec3(0, 1.5f, 0) + -4 * cameraDir;
-		camera.look = car.pos + 4 * cameraDir;
-        camera.up = vec3(0, 1, 0);
-		camera.fov = 60 + length(car.vel) * 25;
-    } else if (camera_type == 2) { // Top-down camera
-		camera.loc = car.pos + vec3(0, 30, 0);
-		camera.look = car.pos;
-        camera.up = car.dir;
-		camera.fov = 60;
-    } else if (camera_type == 3) {
-		camera.loc = car.pos + vec3(0, 0.5f, 0) + car.dir * 0.5f;
-		camera.look = car.pos + car.dir * 3 + vec3(0, 0.5f, 0);
-        camera.up = vec3(0, 1, 0);
-		camera.fov = 60;
-    }
-	camera.update();
 	// Rendering main pass
 	mainPass.use();
 	glActiveTexture(GL_TEXTURE1);

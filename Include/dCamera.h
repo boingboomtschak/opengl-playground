@@ -11,7 +11,7 @@ struct Camera {
 	float zNear;
 	float zFar;
 	vec3 loc = vec3(0, 0, 0);
-	vec3 look = vec3(0, 0, 0);
+	vec3 look = vec3(1, 0, 0);
     vec3 up = vec3(0, 1, 0);
 	mat4 view;
 	mat4 persp;

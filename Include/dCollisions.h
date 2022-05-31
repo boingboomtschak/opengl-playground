@@ -20,7 +20,7 @@ enum class ColliderType { None, Sphere, AABB, OBB, ConvexHull };
 
 struct Collider {
     ColliderType type = ColliderType::None;
-    vec3 center;
+    vec3 center = vec3(0, 0, 0);
 };
 
 // Forward declaration for collision functions
@@ -31,7 +31,6 @@ struct ConvexHull;
 
 // Sphere collider
 struct Sphere : Collider {
-    vec3 center = vec3(0.0f);
     float radius = 0.0f;
     Sphere(const vector<vec3>& points) {
         type = ColliderType::Sphere;
@@ -94,13 +93,13 @@ struct Plane {
     vec3 normal = vec3(0, 1, 0);
     vec3 point = vec3(0.0f);
     float distance(vec3 pt) {
-        return normal.x * pt.x + normal.y * pt.y + normal.z * pt.z + dot(-pt, normal);
+        return dot(normal, pt - point);
     }
     bool onOrBehindPlane(vec3 pt) {
-        return dot(normal, pt - point) <= 0;
+        return distance(pt) <= 0;
     }
     bool onOrBehindPlane(vec3 center, float radius) {
-        return distance(center) <= radius || onOrBehindPlane(center);
+        return distance(center) <= radius;
     }
 };
 
@@ -108,10 +107,10 @@ struct Frustum {
     Plane topFace, bottomFace, leftFace, rightFace, nearFace, farFace;
     Frustum(Camera cam) {
         const float aspect = cam.width / cam.height;
-        const float halfX = cam.zFar * tanf((cam.fov * DegreesToRadians)* 0.5f);
-        const float halfY = halfX / aspect;
+        const float halfY = cam.zFar * tanf(cam.fov * M_PI / 180.0f * 0.5f);
+        const float halfX = halfY * aspect;
         const vec3 camForward = normalize(cam.look - cam.loc);
-        const vec3 camLeft = cross(cam.up, camForward);
+        const vec3 camLeft = normalize(cross(cam.up, camForward));
         const vec3 farMiddle = cam.zFar * camForward;
         nearFace = { -camForward, cam.loc + cam.zNear * camForward };
         farFace = { camForward, cam.loc + farMiddle };
@@ -121,7 +120,12 @@ struct Frustum {
         bottomFace = { normalize(cross(camLeft, farMiddle - cam.up * halfY)), cam.loc };
     }
     bool inFrustum(vec3 point) {
-        return topFace.onOrBehindPlane(point) && bottomFace.onOrBehindPlane(point) && leftFace.onOrBehindPlane(point) && rightFace.onOrBehindPlane(point) && nearFace.onOrBehindPlane(point) && farFace.onOrBehindPlane(point);
+        return topFace.onOrBehindPlane(point) 
+            && bottomFace.onOrBehindPlane(point) 
+            && leftFace.onOrBehindPlane(point) 
+            && rightFace.onOrBehindPlane(point) 
+            && nearFace.onOrBehindPlane(point) 
+            && farFace.onOrBehindPlane(point);
     }
     bool inFrustum(mat4& transform, Sphere* collider) {
         vec3 tf_center (transform * vec4(collider->center, 1));
