@@ -36,7 +36,7 @@ struct Sphere : Collider {
         type = ColliderType::Sphere;
         vec3 _min = vec3(f_lim::max());
         vec3 _max = vec3(-f_lim::max());
-        for (const vec3 pt : points) {
+        for (const vec3& pt : points) {
             if (pt.x < _min.x) _min.x = pt.x;
             if (pt.y < _min.y) _min.y = pt.y;
             if (pt.z < _min.z) _min.z = pt.z;
@@ -72,7 +72,7 @@ struct AABB : Collider {
     vec3 min, max;
     AABB(const vector<vec3>& points) {
         type = ColliderType::AABB;
-        for (const vec3 pt : points) {
+        for (const vec3& pt : points) {
             if (pt.x < min.x) min.x = pt.x;
             if (pt.y < min.y) min.y = pt.y;
             if (pt.z < min.z) min.z = pt.z;
@@ -164,9 +164,10 @@ vector<mat4> cull_instances_aabb(Collider* collider, vector<mat4>& instance_tran
     AABB* c = (AABB*)collider;
     vector<mat4> culled; 
     for (mat4& tf : instance_transforms) {
-        vec4 tf_min = tf * model * c->min;
-        vec4 tf_max = tf * model * c->max;
-        vec4 corners[8] = {
+        const mat4 m = tf * model;
+        const vec4 tf_min = m * c->min;
+        const vec4 tf_max = m * c->max;
+        const vec4 corners[8] = {
             {tf_min.x, tf_min.y, tf_min.z, 1.0}, 
             {tf_max.x, tf_min.y, tf_min.z, 1.0}, 
             {tf_min.x, tf_max.y, tf_min.z, 1.0}, 
@@ -178,7 +179,7 @@ vector<mat4> cull_instances_aabb(Collider* collider, vector<mat4>& instance_tran
         };
         bool inside = false;
         for (size_t i = 0; i < 8; i++) {
-            vec4 corner = vp * corners[i];
+            const vec4 corner = vp * corners[i];
             inside = inside || (corner.x > -corner.w && corner.x < corner.w && corner.y > -corner.w && corner.y < corner.w && corner.z > -corner.w && corner.z < corner.w);
         }
         if (inside) { culled.push_back(tf); }

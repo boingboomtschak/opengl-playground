@@ -7,8 +7,8 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include "dRenderPass.h"
 #include "VecMat.h"
-#include "GLXtras.h"
 #include "stb_image.h"
 
 using std::vector;
@@ -17,7 +17,6 @@ using std::runtime_error;
 
 namespace {
 
-GLuint skyboxShader = 0;
 GLuint skyboxVArray = 0;
 GLuint skyboxVBuffer = 0;
 
@@ -62,7 +61,7 @@ vector<vec3> skyboxPoints{
 
 const char* skyboxVert = R"(
 	#version 410 core
-	in vec3 point;
+	layout(location = 0) in vec3 point;
 	out vec3 texCoord;
 	uniform mat4 view;
 	uniform mat4 persp;
@@ -82,23 +81,27 @@ const char* skyboxFrag = R"(
 	}
 )";
 
+RenderPass skyboxPass;
+
 }
 
 struct dSkybox {
 	dSkybox() { };
 	GLuint texture = 0, texUnit = 1;
 	void setup() {
-		if (!skyboxShader)
-			skyboxShader = LinkProgramViaCode(&skyboxVert, &skyboxFrag);
+        if (!skyboxPass.program)
+            skyboxPass.loadShaders(&skyboxVert, &skyboxFrag);
 		if (!skyboxVArray) {
 			glGenVertexArrays(1, &skyboxVArray);
 			glBindVertexArray(skyboxVArray);
 			glGenBuffers(1, &skyboxVBuffer);
 			glBindBuffer(GL_ARRAY_BUFFER, skyboxVBuffer);
 			glBufferData(GL_ARRAY_BUFFER, skyboxPoints.size() * sizeof(vec3), skyboxPoints.data(), GL_STATIC_DRAW);
-			VertexAttribPointer(skyboxShader, "point", 3, 0, 0);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 			glBindVertexArray(0);
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glDisableVertexAttribArray(0);
 		}
 	}
 	void cleanup() {
@@ -140,14 +143,14 @@ struct dSkybox {
 	}
 	void draw(vec3 view_dir, mat4 persp) {
 		glDepthMask(GL_FALSE);
-		glUseProgram(skyboxShader);
+        skyboxPass.use();
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
 		// Recreating camera view matrix without translation
 		mat4 m = LookAt(vec3(0, 0, 0), view_dir, vec3(0, 1, 0));
-		SetUniform(skyboxShader, "view", m);
-		SetUniform(skyboxShader, "persp", persp);
-		SetUniform(skyboxShader, "skybox", 0);
+        skyboxPass.set("view", m);
+        skyboxPass.set("persp", persp);
+        skyboxPass.set("skybox", 0);
 		glBindVertexArray(skyboxVArray);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glDepthMask(GL_TRUE);

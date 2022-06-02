@@ -550,17 +550,27 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
 		if (cur_skybox >= skyboxes.size()) cur_skybox = 0;
 	}
 	if (key == GLFW_KEY_F && action == GLFW_PRESS) {
-		if (fullscreen) {
-			win_width = windowed_width;
-			win_height = windowed_height;
-			glfwSetWindowMonitor(window, NULL, 100, 100, win_width, win_height, 0);
-			fullscreen = false;
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		} else {
-            glfwSetWindowMonitor(window, monitor, 0, 0, currentVidMode.width, currentVidMode.height, currentVidMode.refreshRate);
-            fullscreen = true;
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-		}
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+            frustumCulling = !frustumCulling;
+            if (!frustumCulling) {
+                large_tree_mesh.loadInstances(large_tree_instance_transforms);
+                num_culled_large_trees = (int)large_tree_instance_transforms.size();
+                grass_mesh.loadInstances(grass_instance_transforms);
+                num_culled_grass = (int)grass_instance_transforms.size();
+            }
+        } else {
+            if (fullscreen) {
+                win_width = windowed_width;
+                win_height = windowed_height;
+                glfwSetWindowMonitor(window, NULL, 100, 100, win_width, win_height, 0);
+                fullscreen = false;
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            } else {
+                glfwSetWindowMonitor(window, monitor, 0, 0, currentVidMode.width, currentVidMode.height, currentVidMode.refreshRate);
+                fullscreen = true;
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            }
+        }
 	}
 }
 
@@ -659,9 +669,9 @@ void render_imgui() {
 		}
 		if (ImGui::Checkbox("Frustum Culling", &frustumCulling)) {
 			large_tree_mesh.loadInstances(large_tree_instance_transforms);
-			num_culled_large_trees = large_tree_instance_transforms.size();
+			num_culled_large_trees = (int)large_tree_instance_transforms.size();
 			grass_mesh.loadInstances(grass_instance_transforms);
-			num_culled_grass = grass_instance_transforms.size();
+			num_culled_grass = (int)grass_instance_transforms.size();
 		}
 		ImGui::EndMenu();
 	}
