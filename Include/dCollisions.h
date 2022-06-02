@@ -69,8 +69,18 @@ struct Sphere : Collider {
 
 // Axis-aligned bounding box collider
 struct AABB : Collider {
+    vec3 min, max;
     AABB(const vector<vec3>& points) {
-        
+        type = ColliderType::AABB;
+        for (const vec3 pt : points) {
+            if (pt.x < min.x) min.x = pt.x;
+            if (pt.y < min.y) min.y = pt.y;
+            if (pt.z < min.z) min.z = pt.z;
+            if (pt.x > max.x) max.x = pt.x;
+            if (pt.y > max.y) max.y = pt.y;
+            if (pt.z > max.z) max.z = pt.z;
+        }
+        center = (min + max) / 0.5;
     }
 };
 
@@ -112,11 +122,11 @@ struct Frustum {
         const vec3 camForward = normalize(cam.look - cam.loc);
         const vec3 camLeft = normalize(cross(cam.up, camForward));
         const vec3 farMiddle = cam.zFar * camForward;
-        nearFace = { -camForward, cam.loc + cam.zNear * camForward };
-        farFace = { camForward, cam.loc + farMiddle };
-        leftFace = { normalize(cross(cam.up, farMiddle + camLeft * halfX)), cam.loc };
-        rightFace = { normalize(cross(cam.up, farMiddle - camLeft * halfX)), cam.loc };
-        topFace = { normalize(cross(camLeft, farMiddle + cam.up * halfY)), cam.loc };
+        nearFace   = { -camForward, cam.loc + cam.zNear * camForward };
+        farFace    = { camForward, cam.loc + farMiddle };
+        leftFace   = { normalize(cross(cam.up, farMiddle + camLeft * halfX)), cam.loc };
+        rightFace  = { normalize(cross(cam.up, farMiddle - camLeft * halfX)), cam.loc };
+        topFace    = { normalize(cross(camLeft, farMiddle + cam.up * halfY)), cam.loc };
         bottomFace = { normalize(cross(camLeft, farMiddle - cam.up * halfY)), cam.loc };
     }
     bool inFrustum(vec3 point) {
@@ -127,7 +137,7 @@ struct Frustum {
             && nearFace.onOrBehindPlane(point) 
             && farFace.onOrBehindPlane(point);
     }
-    bool inFrustum(mat4& transform, Sphere* collider) {
+    bool inFrustum(mat4 transform, Sphere* collider) {
         vec3 tf_center (transform * vec4(collider->center, 1));
         return topFace.onOrBehindPlane(tf_center, collider->radius) 
             && bottomFace.onOrBehindPlane(tf_center, collider->radius) 
@@ -136,16 +146,42 @@ struct Frustum {
             && nearFace.onOrBehindPlane(tf_center, collider->radius) 
             && farFace.onOrBehindPlane(tf_center, collider->radius);
     }
-    vector<mat4> cull_instances(Collider* collider, vector<mat4>& instance_transforms) {
+    vector<mat4> cull_instances_sphere(Collider* collider, vector<mat4>& instance_transforms) {
+        if (collider->type != ColliderType::Sphere)
+            throw runtime_error("Invalid frustum cull collider type!");
         vector<mat4> culled;
         for (mat4& tf : instance_transforms)
-            if (collider->type == ColliderType::Sphere) {
-                if (inFrustum(tf, (Sphere*)collider)) { culled.push_back(tf); }
-            } else {
-                throw runtime_error("Invalid frustum cull collider type!");
-            }
+            if (inFrustum(tf, (Sphere*)collider)) { culled.push_back(tf); }
         return culled;
     }
 };
+
+vector<mat4> cull_instances_aabb(Collider* collider, vector<mat4>& instance_transforms, mat4 vp, mat4 model) {
+    if (collider->type != ColliderType::AABB)
+        throw runtime_error("Invalid collider type, not AABB!");
+    AABB* c = (AABB*)collider;
+    vector<mat4> culled; 
+    for (mat4& tf : instance_transforms) {
+        vec4 tf_min = tf * model * c->min;
+        vec4 tf_max = tf * model * c->max;
+        vec4 corners[8] = {
+            {tf_min.x, tf_min.y, tf_min.z, 1.0}, 
+            {tf_max.x, tf_min.y, tf_min.z, 1.0}, 
+            {tf_min.x, tf_max.y, tf_min.z, 1.0}, 
+            {tf_max.x, tf_max.y, tf_min.z, 1.0}, 
+            {tf_min.x, tf_min.y, tf_max.z, 1.0}, 
+            {tf_max.x, tf_min.y, tf_max.z, 1.0}, 
+            {tf_min.x, tf_max.y, tf_max.z, 1.0}, 
+            {tf_max.x, tf_max.y, tf_max.z, 1.0}, 
+        };
+        bool inside = false;
+        for (size_t i = 0; i < 8; i++) {
+            vec4 corner = vp * corners[i];
+            inside = inside || (corner.x > -corner.w && corner.x < corner.w && corner.y > -corner.w && corner.y < corner.w && corner.z > -corner.w && corner.z < corner.w);
+        }
+        if (inside) { culled.push_back(tf); }
+    }
+    return culled;
+}
 
 #endif

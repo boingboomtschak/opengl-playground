@@ -663,8 +663,8 @@ void setup() {
 	grass_mesh.setupInstanceBuffer(grass_instance_transforms.size());
 	grass_mesh.loadInstances(grass_instance_transforms); 
 	// Setup colliders
-	large_tree_mesh.createCollider<Sphere>();
-	grass_mesh.createCollider<Sphere>();
+	large_tree_mesh.createCollider<AABB>();
+	grass_mesh.createCollider<AABB>();
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
 		dSkybox skybox;
@@ -721,11 +721,10 @@ void draw() {
 	camera.update();
 	if (frustumCulling) {
 		// Cull instances out of frustum, update instances
-		Frustum frustum(camera);
-		vector<mat4> culled_large_trees = frustum.cull_instances(large_tree_mesh.collider, large_tree_instance_transforms);
+		vector<mat4> culled_large_trees = cull_instances_aabb(large_tree_mesh.collider, large_tree_instance_transforms, camera.persp * camera.view, large_tree_mesh.model);
 		large_tree_mesh.loadInstances(culled_large_trees);
 		num_culled_large_trees = (int)culled_large_trees.size();
-		vector<mat4> culled_grass = frustum.cull_instances(grass_mesh.collider, grass_instance_transforms);
+		vector<mat4> culled_grass = cull_instances_aabb(grass_mesh.collider, grass_instance_transforms, camera.persp * camera.view, grass_mesh.model);
 		grass_mesh.loadInstances(culled_grass);
 		num_culled_grass = (int)culled_grass.size();
 	}

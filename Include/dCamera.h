@@ -15,9 +15,8 @@ struct Camera {
     vec3 up = vec3(0, 1, 0);
 	mat4 view;
 	mat4 persp;
-	Camera(int _width, int _height, float _fov, float _zNear, float _zFar) : width(_width), height(_height), fov(_fov), zNear(_zNear), zFar(_zFar) {
-		view = LookAt(loc, look, up);
-		persp = Perspective(fov, (float)width / (float)height, zNear, zFar);
+	Camera(int width, int height, float fov, float zNear, float zFar) : width(width), height(height), fov(fov), zNear(zNear), zFar(zFar) {
+		update();
 	}
 	void update() {
 		view = LookAt(loc, look, up);
