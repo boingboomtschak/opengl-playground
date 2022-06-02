@@ -124,10 +124,10 @@ struct Frustum {
         const vec3 farMiddle = cam.zFar * camForward;
         nearFace   = { -camForward, cam.loc + cam.zNear * camForward };
         farFace    = { camForward, cam.loc + farMiddle };
-        leftFace   = { normalize(cross(cam.up, farMiddle + camLeft * halfX)), cam.loc };
-        rightFace  = { normalize(cross(cam.up, farMiddle - camLeft * halfX)), cam.loc };
-        topFace    = { normalize(cross(camLeft, farMiddle + cam.up * halfY)), cam.loc };
-        bottomFace = { normalize(cross(camLeft, farMiddle - cam.up * halfY)), cam.loc };
+        leftFace   = { normalize(cross(cam.up, (farMiddle + camLeft * halfX) - cam.loc)), cam.loc };
+        rightFace  = { normalize(cross(cam.up, (farMiddle - camLeft * halfX) - cam.loc)), cam.loc };
+        topFace    = { normalize(cross(camLeft, (farMiddle + cam.up * halfY) - cam.loc)), cam.loc };
+        bottomFace = { normalize(cross(camLeft, (farMiddle - cam.up * halfY) - cam.loc)), cam.loc };
     }
     bool inFrustum(vec3 point) {
         return topFace.onOrBehindPlane(point) 
@@ -146,15 +146,17 @@ struct Frustum {
             && nearFace.onOrBehindPlane(tf_center, collider->radius) 
             && farFace.onOrBehindPlane(tf_center, collider->radius);
     }
-    vector<mat4> cull_instances_sphere(Collider* collider, vector<mat4>& instance_transforms) {
-        if (collider->type != ColliderType::Sphere)
-            throw runtime_error("Invalid frustum cull collider type!");
-        vector<mat4> culled;
-        for (mat4& tf : instance_transforms)
-            if (inFrustum(tf, (Sphere*)collider)) { culled.push_back(tf); }
-        return culled;
-    }
+
 };
+
+vector<mat4> cull_instances_sphere(Frustum frustum, Collider* collider, vector<mat4>& instance_transforms) {
+    if (collider->type != ColliderType::Sphere)
+        throw runtime_error("Invalid collider type, not Sphere!");
+    vector<mat4> culled;
+    for (mat4& tf : instance_transforms)
+        if (frustum.inFrustum(tf, (Sphere*)collider)) { culled.push_back(tf); }
+    return culled;
+}
 
 vector<mat4> cull_instances_aabb(Collider* collider, vector<mat4>& instance_transforms, mat4 vp, mat4 model) {
     if (collider->type != ColliderType::AABB)
