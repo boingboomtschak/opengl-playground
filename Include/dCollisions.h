@@ -116,18 +116,20 @@ struct Plane {
 struct Frustum {
     Plane topFace, bottomFace, leftFace, rightFace, nearFace, farFace;
     Frustum(Camera cam) {
-        const float aspect = cam.width / cam.height;
-        const float halfY = cam.zFar * tanf(cam.fov * M_PI / 180.0f * 0.5f);
-        const float halfX = halfY * aspect;
+        const float aspect = (float)cam.width / (float)cam.height;
         const vec3 camForward = normalize(cam.look - cam.loc);
-        const vec3 camLeft = normalize(cross(cam.up, camForward));
-        const vec3 farMiddle = cam.zFar * camForward;
-        nearFace   = { -camForward, cam.loc + cam.zNear * camForward };
-        farFace    = { camForward, cam.loc + farMiddle };
-        leftFace   = { normalize(cross(cam.up, (farMiddle + camLeft * halfX) - cam.loc)), cam.loc };
-        rightFace  = { normalize(cross(cam.up, (farMiddle - camLeft * halfX) - cam.loc)), cam.loc };
-        topFace    = { normalize(cross(camLeft, (farMiddle + cam.up * halfY) - cam.loc)), cam.loc };
-        bottomFace = { normalize(cross(camLeft, (farMiddle - cam.up * halfY) - cam.loc)), cam.loc };
+        const vec3 camLeft = normalize(cross(cam.up, camForward)); // right-handed cross-product
+        const float t = tanf(.5f * cam.fov * M_PI / 180.f);               // fov in degrees
+        const vec3 topTangent = camForward + t * cam.up;                // cam.up assumed unit-length
+        const vec3 bottomTangent = camForward - t * cam.up;
+        const vec3 leftTangent = camForward + t * aspect * camLeft;
+        const vec3 rightTangent = camForward - t * aspect * camLeft;
+        topFace = { normalize(cross(topTangent, camLeft)), cam.loc };
+        bottomFace = { normalize(cross(camLeft, bottomTangent)), cam.loc };
+        leftFace = { normalize(cross(cam.up, leftTangent)), cam.loc };
+        rightFace = { normalize(cross(rightTangent, cam.up)), cam.loc };
+        nearFace = { -camForward, cam.loc + cam.zNear * camForward };
+        farFace = { camForward, cam.loc + cam.zFar * camForward };
     }
     bool inFrustum(vec3 point) {
         return topFace.onOrBehindPlane(point) 
