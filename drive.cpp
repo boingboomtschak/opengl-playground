@@ -20,7 +20,6 @@
 #include "dMisc.h"
 #include "dSkybox.h"
 #include "dParticles.h"
-#include "dTextureDebug.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include "imgui/imgui.h"
@@ -170,22 +169,24 @@ const char* mainFrag = R"(
 
 vector<dSkybox> skyboxes;
 vector<string> skyboxPaths {
-	"textures/skybox/maskonaive/",
+	"textures/skybox/humble/",
 	"textures/skybox/classic-land/",
+	"textures/skybox/maskonaive/",
 	"textures/skybox/empty-space/",
-	"textures/skybox/dusk-ocean/"
+	"textures/skybox/dusk-ocean/",
 };
 vector<string> skyboxNames {
-	"Maskonaive",
+	"Humble",
 	"Classic Land",
+	"Maskonaive",
 	"Empty Space",
-	"Dusk Ocean"
+	"Dusk Ocean",
 };
 int cur_skybox = 0;
 
 dParticles particleSystem;
 
-Camera camera(win_width, win_height, 60, 0.5f, 120.0f);
+Camera camera(win_width, win_height, 60, 0.5f, 800.0f);
 
 int camera_type = 1;
 // 1 - Third person chase camera
@@ -421,6 +422,9 @@ vector<vec3> grass_instance_positions {
 vector<mat4> grass_instance_transforms;
 int num_culled_grass = 0;
 
+Mesh cloud_mesh;
+vector<mat4> cloud_instance_transforms;
+
 Mesh campfire_mesh;
 Mesh sleeping_bag_mesh;
 
@@ -430,9 +434,9 @@ struct Car {
 	float engine = 0.0; // engine force
 	float roll = 0.0; // rolling resistance
 	float drag = 0.0; // aerodynamic drag constant
-	vec3 pos; // position
-	vec3 dir; // direction
-	vec3 vel; // velocity
+	vec3 pos = vec3(0, 0, 0); // position
+	vec3 dir = vec3(1, 0, 0); // direction
+	vec3 vel = vec3(0, 0, 0); // velocity
 	Car() { };
 	Car(Mesh _mesh, float _mass, float _engine, float _roll, float _drag) {
 		mesh = _mesh;
@@ -440,9 +444,6 @@ struct Car {
 		engine = _engine;
 		roll = _roll;
 		drag = _drag;
-		pos = vec3(0, 0, 0);
-		dir = vec3(1, 0, 0);
-		vel = vec3(0, 0, 0);
 	}
 	mat4 transform() {
 		return Translate(pos) * Orientation(dir, vec3(0, 1, 0));
@@ -736,6 +737,7 @@ void setup() {
     mat4 large_tree_transform = Scale(2.0);
 	large_tree_mesh = Mesh("objects/largetree.obj", "textures/largetree.png", large_tree_transform);
 	grass_mesh = Mesh("objects/grass.obj", "textures/grass.png", mat4());
+	cloud_mesh = Mesh("objects/cloud.obj", "textures/cloud.png", Scale(4.0f));
 	campfire_mesh = Mesh("objects/campfire.obj", "textures/campfire.png", Scale(0.5f));
 	sleeping_bag_mesh = Mesh("objects/sleeping_bag.obj", "textures/sleeping_bag.png", Translate(0.0f, 0.05f, 0.0f));
     // Setup instance render buffers
@@ -747,6 +749,12 @@ void setup() {
 		grass_instance_transforms.push_back(Translate(pos) * RotateY(rand_float(-180.0f, 180.0f)));
 	grass_mesh.setupInstanceBuffer((GLsizei)grass_instance_transforms.size());
 	grass_mesh.loadInstances(grass_instance_transforms); 
+	for (int i = 0; i < 500; i++) {
+		mat4 m = Translate(rand_float(-600.0, 600.0), rand_float(50.0, 80.0), rand_float(-600.0, 600.0)) * RotateY(rand_float(-5.0f, 5.0f)) * Scale(rand_float(2.0, 4.0), 1.0, rand_float(2.0, 4.0));
+		cloud_instance_transforms.push_back(m);
+	}
+	cloud_mesh.setupInstanceBuffer((GLsizei)cloud_instance_transforms.size());
+	cloud_mesh.loadInstances(cloud_instance_transforms);
 	// Setup colliders
 	large_tree_mesh.createCollider<Sphere>();
 	grass_mesh.createCollider<Sphere>();
@@ -775,6 +783,7 @@ void cleanup() {
 	grass_mesh.cleanup();
 	campfire_mesh.cleanup();
 	sleeping_bag_mesh.cleanup();
+	cloud_mesh.cleanup();
     // Cleanup skyboxes / particle system
 	for (dSkybox skybox : skyboxes)
 		skybox.cleanup();
@@ -890,7 +899,8 @@ void draw() {
 	large_tree_mesh.renderInstanced();
 	mainPassInst.set("model", grass_mesh.model);
     grass_mesh.renderInstanced();
-	//TextureDebug::show(shadowTexture, 0, 0, win_width / 4, win_height / 4);
+	mainPassInst.set("model", cloud_mesh.model);
+	cloud_mesh.renderInstanced();
 	render_imgui();
 	glFlush();
 }
