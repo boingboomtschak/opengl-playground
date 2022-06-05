@@ -5,14 +5,19 @@
 
 #include <vector>
 #include <stdexcept>
+#include <map>
+#include <string>
 #include "glad.h"
 #include "VecMat.h"
 
 using std::vector;
 using std::runtime_error;
+using std::map;
+using std::string;
 
 struct RenderPass {
 	GLuint program = 0;
+	map<string, GLint> uniform_ids;
 	RenderPass() { };
 	void loadShaders(const char** vertShaderSrc, const char** fragShaderSrc) {
 		// Compile shaders
@@ -33,9 +38,12 @@ struct RenderPass {
 		glAttachShader(program, fragShader);
 		glLinkProgram(program);
 		checkLinkStatus(program);
+		getUniformIds();
 	}
+	// TODO
 	void loadShaders(const char** vertShaderSrc, const char** tessCntrlShaderSrc, const char** tessEvalShaderSrc, const char** geomShaderSrc, const char** fragShaderSrc) { };
-	void loadShaders(const char** computeShaderSrc) { };
+	// TODO
+	void loadShaders(const char** computeShaderSrc) {  };
 	void cleanup() {
 		if (program) glDeleteProgram(program);
 	}
@@ -47,6 +55,21 @@ struct RenderPass {
 	void use() {
 		if (!program) throw runtime_error("Render pass used before shaders loaded!");
 		if (!active()) glUseProgram(program);
+	}
+	void getUniformIds() {
+		if (!program)
+			throw runtime_error("Uniform IDs retrieved before shaders loaded!");
+		int count;
+		glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &count);
+		for (int i = 0; i < count; i++) {
+			GLsizei nameLen;
+			GLint size;
+			GLenum type;
+			GLchar name[32]{ '\0' };
+			glGetActiveUniform(program, (GLuint)i, 32, &nameLen, &size, &type, name);
+			string nameStr(name);
+			uniform_ids[nameStr] = i;
+		}
 	}
 	void checkCompileStatus(GLuint shader, const char* shaderType) {
 		GLint res;
@@ -90,10 +113,10 @@ struct RenderPass {
 	}
 private:
 	GLint getId(const char* key) {
-		GLint id = glGetUniformLocation(program, key);
+		map<string, GLint>::iterator it = uniform_ids.find(string(key));
 		if (!active()) printf("Program %d : Can't set uniform '%s' as program not active!", program, key);
-		else if (id < 0) printf("Program %d : Can't find uniform '%s'!", program, key);
-		else return id;
+		else if (it == uniform_ids.end()) printf("Program %d : Can't find uniform '%s'!", program, key);
+		else return it->second;
 		return -1;
 	}
 	void uniform(GLint id, GLuint* val) { glUniform1ui(id, *val); }
