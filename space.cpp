@@ -37,6 +37,33 @@ int videoModesCount;
 bool fullscreen = false;
 float dt;
 
+RenderPass mainPass;
+
+const char* mainVert = R"(
+	#version 410 core
+	layout(location = 0) in vec3 point;
+	layout(location = 1) in vec2 uv;
+	out vec2 vUv;
+	uniform mat4 model;
+	uniform mat4 view;
+	uniform mat4 persp;
+	void main() {
+		vUv = uv;
+		gl_Position = persp * view * model * vec4(point, 1);
+	}
+)";
+
+const char* mainFrag = R"(
+	#version 410 core
+	in vec2 vUv;
+	out vec4 pColor;
+	uniform sampler2D txtr;
+	uniform vec4 ambient = vec4(vec3(0.1), 1);
+	void main() {
+		pColor = texture(txtr, vUv);
+	}
+)";
+
 vector<dSkybox> skyboxes;
 vector<string> skyboxPaths{
 	"textures/skybox/sunshine/",
@@ -56,13 +83,35 @@ struct Ship {
 	Mesh mesh;
 	vec3 pos = vec3(0, 0, 0);
 	vec3 dir = vec3(1, 0, 0);
+	vec3 up = vec3(0, 1, 0);
+	vec3 vel = vec3(0, 0, 0);
 	mat4 transform() {
-
+		return Translate(pos) * Orientation(dir, up) * mesh.model;
 	}
 	void update(float dt) {
-
+		// Adjust roll
+		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+			up = vec3(RotateAxis(dir, dt * 1.5f) * vec4(up, 1));
+		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+			up = vec3(RotateAxis(dir, dt * -1.5f) * vec4(up, 1));
+		// Adjust yaw
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+			dir = vec3(RotateAxis(up, dt * 1.0f) * vec4(dir, 1));
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+			dir = vec3(RotateAxis(up, dt * -1.0f) * vec4(dir, 1));
+		// Adjust pitch
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			mat4 r = RotateAxis(cross(dir, up), dt * 1.5f);
+			dir = vec3(r * vec4(dir, 1));
+			up = vec3(r * vec4(up, 1));
+		}
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+			mat4 r = RotateAxis(cross(dir, up), dt * -1.5f);
+			dir = vec3(r * vec4(dir, 1));
+			up = vec3(r * vec4(up, 1));
+		}
 	}
-};
+} ship;
 
 void WindowResized(GLFWwindow* window, int _width, int _height) {
 	int width, height;
@@ -100,8 +149,11 @@ void setup() {
 	// Initialize GLFW callbacks
 	glfwSetKeyCallback(window, Keyboard);
 	glfwSetWindowSizeCallback(window, WindowResized);
+	// Load shaders into render passes
+	mainPass.loadShaders(&mainVert, &mainFrag);
 	// Setup meshes
-	
+	ship.mesh = Mesh("objects/starsparrow.obj", "textures/starsparrow.png", mat4());
+	ship.pos = vec3(2, 0, 0);
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
 		dSkybox skybox;
@@ -118,12 +170,20 @@ void setup() {
 }
 
 void cleanup() {
+	ship.mesh.cleanup();
 	for (dSkybox skybox : skyboxes)
 		skybox.cleanup();
 }
 
 void draw() {
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	glCullFace(GL_BACK);
+	mainPass.use();
+	mainPass.set("txtr", 0);
+	mainPass.set("persp", camera.persp);
+	mainPass.set("view", camera.view);
+	mainPass.set("model", ship.transform());
+	ship.mesh.render();
 	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
 	glFlush();
 }
@@ -160,6 +220,7 @@ int main() {
 		float_ms since = cur - lastSim;
 		dt = 1 / (1000.0f / since.count() / 60.0f);
 		lastSim = cur;
+		ship.update(dt);
 		draw();
 		glfwPollEvents();
 		glfwSwapBuffers(window);

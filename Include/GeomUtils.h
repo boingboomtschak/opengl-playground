@@ -207,4 +207,16 @@ inline vector<vec4> frustumCorners(mat4 proj, mat4 view) {
 	return corners;
 }
 
+// Rodrigues' rotation formula for rotation matrix around a vector 
+inline mat4 RotateAxis(vec3 axis, float theta) {
+	float a = DegreesToRadians*theta; // angle (converted to rads)
+	vec3 o = normalize(axis); // omega (unit vector)
+	return mat4(
+		vec4(cos(a) + (o.x*o.x)*(1-cos(a)), o.x*o.y*(1-cos(a))-o.z*sin(a), o.y*sin(a)+o.x*o.z*(1-cos(a)), 0.0),
+		vec4(o.z*sin(a)+o.x*o.y*(1-cos(a)), cos(a)+(o.y*o.y)*(1-cos(a)), -o.x*sin(a)+o.y*o.z*(1-cos(a)), 0.0),
+		vec4(-o.y*sin(a)+o.x*o.z*(1-cos(a)), o.x*sin(a)+o.y*o.z*(1-cos(a)), cos(a)+(o.z*o.z)*(1-cos(a)), 0.0),
+		vec4(0.0, 0.0, 0.0, 1.0)
+	);
+}
+
 #endif // GEOM_UTIL_HDR
