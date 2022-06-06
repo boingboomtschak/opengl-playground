@@ -167,7 +167,7 @@ const char* mainFrag = R"(
 	}
 )";
 
-vector<dSkybox> skyboxes;
+vector<Skybox> skyboxes;
 vector<string> skyboxPaths {
 	"textures/skybox/humble/",
 	"textures/skybox/classic-land/",
@@ -760,7 +760,7 @@ void setup() {
 	grass_mesh.createCollider<Sphere>();
 	// Setup skyboxes
 	for (string path : skyboxPaths) {
-		dSkybox skybox;
+		Skybox skybox;
 		skybox.setup();
 		skybox.loadCubemap(path);
 		skyboxes.push_back(skybox);
@@ -886,7 +886,7 @@ void draw() {
 	mainPass.set("transform", car.transform());
 	car.mesh.render();
     particleSystem.draw(dt, camera.persp * camera.view, floor_mesh.texture, 60);
-	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.persp);
+	skyboxes[cur_skybox].draw(camera.look - camera.loc, camera.up, camera.persp);
     // Rendering instanced main pass
 	mainPassInst.use();
 	mainPassInst.set("txtr", 0);

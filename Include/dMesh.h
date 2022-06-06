@@ -49,7 +49,7 @@ struct Mesh {
             throw runtime_error("Failed to read texture '" + texFilename + "'!");
         allocate();
     }
-    Mesh(string objFilename, string texFilename, mat4 modelTransform) {
+    Mesh(string objFilename, string texFilename, mat4 modelTransform=mat4()) {
         objData = readObj(objFilename);
         normalizePoints(objData.points, 1.0f);
         texture = loadTexture(texFilename);

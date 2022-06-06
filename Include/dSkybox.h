@@ -85,8 +85,8 @@ RenderPass skyboxPass;
 
 }
 
-struct dSkybox {
-	dSkybox() { };
+struct Skybox {
+	Skybox() { };
 	GLuint texture = 0, texUnit = 1;
 	void setup() {
         if (!skyboxPass.program)
@@ -141,13 +141,13 @@ struct dSkybox {
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	}
-	void draw(vec3 view_dir, mat4 persp) {
+	void draw(vec3 dir, vec3 up, mat4 persp) {
 		glDepthMask(GL_FALSE);
         skyboxPass.use();
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
 		// Recreating camera view matrix without translation
-		mat4 m = LookAt(vec3(0, 0, 0), view_dir, vec3(0, 1, 0));
+		mat4 m = LookAt(vec3(0, 0, 0), dir, up);
         skyboxPass.set("view", m);
         skyboxPass.set("persp", persp);
         skyboxPass.set("skybox", 0);
