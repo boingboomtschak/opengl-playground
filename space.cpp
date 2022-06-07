@@ -82,14 +82,14 @@ const char* mainFrag = R"(
 
 vector<Skybox> skyboxes;
 vector<string> skyboxPaths{
+	"textures/skybox/empty-space/",
 	"textures/skybox/sunshine/",
-	"textures/skybox/space/",
-	"textures/skybox/empty-space/"
+	"textures/skybox/space/"
 };
 vector<string> skyboxNames{
-	"Sunshine",
-	"Space",
 	"Empty Space",
+	"Sunshine",
+	"Space"
 };
 int cur_skybox = 0;
 
@@ -105,7 +105,7 @@ struct Ship {
 	vec3 up = vec3(0, 1, 0);
 	vec3 vel = vec3(0, 0, 0);
 	float mass = 500.0f;
-	float engine = 8.0f;
+	float engine = 12.0f;
 	float drag = 30.0f;
 	mat4 transform() {
 		return Translate(pos) * Orientation(dir, up) * mesh.model;

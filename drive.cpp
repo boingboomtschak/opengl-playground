@@ -50,6 +50,8 @@ RenderPass mainPass;
 RenderPass mainPassInst;
 RenderPass shadowPass;
 RenderPass shadowPassInst;
+RenderPass phongPass;
+RenderPass phongPassInst;
 GLuint shadowFramebuffer = 0;
 GLuint shadowTexture = 0;
 
@@ -167,6 +169,65 @@ const char* mainFrag = R"(
 	}
 )";
 
+const char* phongVert = R"(
+	#version 410 core
+	layout (location = 0) in vec3 point;
+	layout (location = 1) in vec2 uv;
+	layout (location = 2) in vec3 normal;
+	out vec3 vPoint;
+	out vec2 vUv;
+	out vec3 vNormal;
+	uniform mat4 model;
+	uniform mat4 view;
+	uniform mat4 persp;
+	void main() {
+		vPoint = (view * model * vec4(point, 1)).xyz;
+		vNormal = (view * model * vec4(normal, 0)).xyz;
+		vUv = uv;
+		gl_Position = persp * vec4(vPoint, 1);
+	}
+)";
+
+const char* phongVertInstanced = R"(
+	#version 410 core
+	layout (location = 0) in vec3 point;
+	layout (location = 1) in vec2 uv;
+	layout (location = 2) in vec3 normal;
+	layout (location = 3) in mat4 transform;
+	out vec3 vPoint;
+	out vec2 vUv;
+	out vec3 vNormal;
+	uniform mat4 model;
+	uniform mat4 view;
+	uniform mat4 persp;
+	void main() {
+		vPoint = (view * transform * model * vec4(point, 1)).xyz;
+		vNormal = (view * transform * model * vec4(normal, 0)).xyz;
+		vUv = uv;
+		gl_Position = persp * vec4(vPoint, 1);
+	}
+)";
+
+const char* phongFrag = R"(
+	#version 410 core
+	in vec3 vPoint;
+	in vec2 vUv;
+	in vec3 vNormal;
+	out vec4 pColor;	
+	uniform vec3 light = vec3(-.2, .1, -3);
+	uniform sampler2D txtr;
+	void main() {
+		vec3 n = normalize(vNormal);
+		vec3 l = normalize(light - vPoint);
+		vec3 e = normalize(vPoint);
+		vec3 r = reflect(l, n);
+		float d = abs(dot(n, l));
+		float s = abs(dot(r, e));
+		float intensity = clamp(d+pow(s, 50), 0, 1);
+		pColor = vec4(intensity * texture(txtr, vUv).rgb, 1);
+	}
+)";
+
 vector<Skybox> skyboxes;
 vector<string> skyboxPaths {
 	"textures/skybox/humble/",
@@ -186,7 +247,7 @@ int cur_skybox = 0;
 
 dParticles particleSystem;
 
-Camera camera(win_width, win_height, 60, 0.5f, 800.0f);
+Camera camera(win_width, win_height, 60, 0.5f, 2000.0f);
 
 int camera_type = 1;
 // 1 - Third person chase camera
@@ -708,6 +769,8 @@ void setup() {
 	mainPassInst.loadShaders(&mainVertInstanced, &mainFrag);
 	shadowPass.loadShaders(&shadowVert, &shadowFrag);
 	shadowPassInst.loadShaders(&shadowVertInstanced, &shadowFrag);
+	phongPass.loadShaders(&phongVert, &phongFrag);
+	phongPassInst.loadShaders(&phongVertInstanced, &phongFrag);
     // Set up shadowmap resources
     glGenFramebuffers(1, &shadowFramebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebuffer);
@@ -750,7 +813,10 @@ void setup() {
 	grass_mesh.setupInstanceBuffer((GLsizei)grass_instance_transforms.size());
 	grass_mesh.loadInstances(grass_instance_transforms); 
 	for (int i = 0; i < 500; i++) {
-		mat4 m = Translate(rand_float(-600.0, 600.0), rand_float(50.0, 80.0), rand_float(-600.0, 600.0)) * RotateY(rand_float(-5.0f, 5.0f)) * Scale(rand_float(2.0, 4.0), 1.0, rand_float(2.0, 4.0));
+		mat4 m;
+		m = Scale(rand_float(3, 6)) * m;
+		m = RotateY(rand_float(-180.0f, 180.0f)) * m;
+		m = Translate(rand_float(-1000.0, 1000.0), rand_float(150.0, 160.0), rand_float(-1000.0, 1000.0)) * m;
 		cloud_instance_transforms.push_back(m);
 	}
 	cloud_mesh.setupInstanceBuffer((GLsizei)cloud_instance_transforms.size());
@@ -785,12 +851,19 @@ void cleanup() {
 	sleeping_bag_mesh.cleanup();
 	cloud_mesh.cleanup();
     // Cleanup skyboxes / particle system
-	for (dSkybox skybox : skyboxes)
+	for (Skybox skybox : skyboxes)
 		skybox.cleanup();
     particleSystem.cleanup();
     // Cleanup shadow map resources
 	glDeleteFramebuffers(1, &shadowFramebuffer);
 	glDeleteTextures(1, &shadowTexture);
+	// Cleanup render passes
+	mainPass.cleanup();
+	mainPassInst.cleanup();
+	shadowPass.cleanup();
+	shadowPassInst.cleanup();
+	phongPass.cleanup();
+	phongPassInst.cleanup();
 }
 
 void draw() {
@@ -899,7 +972,11 @@ void draw() {
 	large_tree_mesh.renderInstanced();
 	mainPassInst.set("model", grass_mesh.model);
     grass_mesh.renderInstanced();
-	mainPassInst.set("model", cloud_mesh.model);
+	phongPassInst.use();
+	phongPassInst.set("persp", camera.persp);
+	phongPassInst.set("view", camera.view);
+	phongPassInst.set("model", cloud_mesh.model);
+	phongPassInst.set("txtr", 0);
 	cloud_mesh.renderInstanced();
 	render_imgui();
 	glFlush();
