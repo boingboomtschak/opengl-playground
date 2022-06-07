@@ -45,17 +45,16 @@ inline float dist_to_segment(vec3 p, vec3 v, vec3 w) {
 inline bool point_segment_left(vec3 p, vec3 v, vec3 w) { return ((w.x - v.x) * (p.y - v.y) - (w.y - v.y) * (p.x - v.x)) > 0; }
 
 // Returns centroid of a set of points
-inline vec3 Centroid(vector<vec3> points) {
+vec3 centroid(vector<vec3> points) {
 	vec3 c = vec3(0.0f);
-	for (size_t i = 0; i < points.size(); i++) {
+	for (size_t i = 0; i < points.size(); i++) 
 		c += points[i];
-	}
 	c /= (float)points.size();
 	return c;
 }
 
 // Samples 
-inline vector<vec3> SampleCircle(vec3 center, int num, int radius) {
+vector<vec3> SampleCircle(vec3 center, int num, int radius) {
 	vector<vec3> v;
 	for (int i = 0; i < num; i++) {
 		float r = radius * (float)sqrt(rand_float());
@@ -68,7 +67,7 @@ inline vector<vec3> SampleCircle(vec3 center, int num, int radius) {
 }
 
 // Recursive function used for QuickHull(), unused otherwise
-inline vector<vec3> _FindHull(vector<vec3> points, vec3 p, vec3 q) {
+vector<vec3> _FindHull(vector<vec3> points, vec3 p, vec3 q) {
 	vector<vec3> hull;
 	// Return if no more points
 	if (points.size() == 0) {
@@ -108,9 +107,9 @@ inline vector<vec3> _FindHull(vector<vec3> points, vec3 p, vec3 q) {
 }
 
 // Finds the convex hull of a series of points
-inline vector<vec3> QuickHull(vector<vec3> points) {
+vector<vec3> QuickHull(vector<vec3> points) {
 	vector<vec3> hull;
-	vec3 c = Centroid(points);
+	vec3 c = centroid(points);
 	// Find left and rightmost points
 	vec3 l = c, r = c;
 	for (size_t i = 0; i < points.size(); i++) {

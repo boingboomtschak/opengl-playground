@@ -44,6 +44,7 @@ int videoModesCount;
 bool fullscreen = false;
 bool frustumCulling = true;
 float dt;
+GLenum polygonMode = GL_FILL;
 
 const int SHADOW_DIM = 16384;
 RenderPass mainPass;
@@ -684,11 +685,15 @@ void show_performance_window() {
 	window_pos.y = work_pos.y + 10.0f;
 	window_pos_pivot.x = 1.0f;
 	window_pos_pivot.y = 0.0f;
+	ImGuiIO& io = ImGui::GetIO();
 	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
 	ImGui::SetNextWindowSize(ImVec2(work_size.x / 4.0f, 0.0f));
 	ImGui::SetNextWindowBgAlpha(0.35f);
 	if (ImGui::Begin("Performance", NULL, window_flags)) {
         ImGui::Text("Initialization time: %.2f ms", init_time);
+		ImGui::Text("FPS: %.0f fps", io.Framerate);
+		ImVec2 displaySize = io.DisplaySize;
+		ImGui::Text("Display Size: %.0f x %.0f", displaySize.x, displaySize.y);
 		ImGui::Text("Trees in view: %d / %d", num_culled_large_trees, (int)large_tree_instance_transforms.size());
 		ImGui::Text("Grass in view: %d / %d", num_culled_grass, (int)grass_instance_transforms.size());
         ImGui::Separator();
@@ -729,7 +734,14 @@ void render_imgui() {
 			}
 			ImGui::EndCombo();
 		}
-		if (ImGui::Checkbox("Frustum Culling", &frustumCulling)) {
+		const char* curPolygonMode = (polygonMode == GL_FILL) ? "GL_FILL" : (polygonMode == GL_LINE ? "GL_LINE" : "GL_POINT");
+		if (ImGui::BeginCombo("Polygon Mode", curPolygonMode)) {
+			if (ImGui::Selectable("GL_FILL", polygonMode == GL_FILL)) { polygonMode = GL_FILL; glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); }
+			if (ImGui::Selectable("GL_LINE", polygonMode == GL_LINE)) { polygonMode = GL_LINE; glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); }
+			if (ImGui::Selectable("GL_POINT", polygonMode == GL_POINT)) { polygonMode = GL_POINT; glPolygonMode(GL_FRONT_AND_BACK, GL_POINT); }
+			ImGui::EndCombo();
+		}
+		if (ImGui::MenuItem("Frustum Culling", "CTRL + F", frustumCulling)) {
 			large_tree_mesh.loadInstances(large_tree_instance_transforms);
 			num_culled_large_trees = (int)large_tree_instance_transforms.size();
 			grass_mesh.loadInstances(grass_instance_transforms);
@@ -889,11 +901,9 @@ void draw() {
 	if (frustumCulling) {
 		// Cull instances out of frustum, update instances
         Frustum frustum(camera);
-		//vector<mat4> culled_large_trees = cull_instances_aabb(large_tree_mesh.collider, large_tree_instance_transforms, camera.persp * camera.view, large_tree_mesh.model);
         vector<mat4> culled_large_trees = cull_instances_sphere(frustum, large_tree_mesh.collider, large_tree_instance_transforms);
 		large_tree_mesh.loadInstances(culled_large_trees);
 		num_culled_large_trees = (int)culled_large_trees.size();
-		//vector<mat4> culled_grass = cull_instances_aabb(grass_mesh.collider, grass_instance_transforms, camera.persp * camera.view, grass_mesh.model);
         vector<mat4> culled_grass = cull_instances_sphere(frustum, grass_mesh.collider, grass_instance_transforms);
 		grass_mesh.loadInstances(culled_grass);
 		num_culled_grass = (int)culled_grass.size();
