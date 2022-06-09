@@ -20,6 +20,7 @@
 #include "dMisc.h"
 #include "dSkybox.h"
 #include "dParticles.h"
+#include "dTextureDebug.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include "imgui/imgui.h"
@@ -43,6 +44,7 @@ GLFWvidmode currentVidMode;
 int videoModesCount;
 bool fullscreen = false;
 bool frustumCulling = true;
+bool showShadowMap = false;
 float dt;
 GLenum polygonMode = GL_FILL;
 
@@ -758,6 +760,8 @@ void Keyboard(GLFWwindow* window, int key, int scancode, int action, int mods) {
             }
         }
 	}
+	if (key == GLFW_KEY_M && action == GLFW_PRESS) 
+		if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) showShadowMap = !showShadowMap;
 }
 
 void load_icon() {
@@ -870,6 +874,7 @@ void render_imgui() {
 			grass_mesh.loadInstances(grass_instance_transforms);
 			num_culled_grass = (int)grass_instance_transforms.size();
 		}
+		if (ImGui::MenuItem("Shadow Map Display", "CTRL + M", showShadowMap)) showShadowMap = !showShadowMap;
 		ImGui::EndMenu();
 	}
     if (ImGui::BeginMenu("Settings")) {
@@ -1111,6 +1116,7 @@ void draw() {
 	phongPassInst.set("model", cloud_mesh.model);
 	phongPassInst.set("txtr", 0);
 	cloud_mesh.renderInstanced();
+	if (showShadowMap) TextureDebug::show(shadowTexture, 0, 0, 512, 512);
 	render_imgui();
 	glFlush();
 }

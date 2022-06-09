@@ -18,6 +18,7 @@ using std::max;
 
 enum class ColliderType { None, Sphere, AABB, OBB, ConvexHull };
 
+// Abstract collider type
 struct Collider {
     ColliderType type = ColliderType::None;
     vec3 center = vec3(0, 0, 0);

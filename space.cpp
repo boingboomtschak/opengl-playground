@@ -44,11 +44,16 @@ const char* mainVert = R"(
 	#version 410 core
 	layout(location = 0) in vec3 point;
 	layout(location = 1) in vec2 uv;
+	layout(location = 2) in vec3 normal;
+	out vec3 vPoint;
 	out vec2 vUv;
+	out vec3 vNormal;
 	uniform mat4 model;
 	uniform mat4 view;
 	uniform mat4 persp;
 	void main() {
+		vPoint = (view * model * vec4(point, 1)).xyz;
+		vNormal = (view * model * vec4(normal, 0)).xyz;
 		vUv = uv;
 		gl_Position = persp * view * model * vec4(point, 1);
 	}
@@ -58,12 +63,17 @@ const char* mainVertInstanced = R"(
 	#version 410 core
 	layout (location = 0) in vec3 point;
 	layout (location = 1) in vec2 uv;
+	layout(location = 2) in vec3 normal;
 	layout (location = 3) in mat4 transform;
+	out vec3 vPoint;
 	out vec2 vUv;
+	out vec3 vNormal;
 	uniform mat4 model;
 	uniform mat4 view;
 	uniform mat4 persp;
 	void main() {
+		vPoint = (view * transform * model * vec4(point, 1)).xyz;
+		vNormal = (view * transform * model * vec4(normal, 0)).xyz;
 		vUv = uv;
 		gl_Position = persp * view * transform * model * vec4(point, 1);
 	}
@@ -71,12 +81,21 @@ const char* mainVertInstanced = R"(
 
 const char* mainFrag = R"(
 	#version 410 core
+	in vec3 vPoint;
 	in vec2 vUv;
-	out vec4 pColor;
+	in vec3 vNormal;
+	out vec4 pColor;	
+	uniform vec3 light = vec3(-.2, .1, -3);
 	uniform sampler2D txtr;
-	uniform vec4 ambient = vec4(vec3(0.1), 1);
 	void main() {
-		pColor = texture(txtr, vUv);
+		vec3 n = normalize(vNormal);
+		vec3 l = normalize(light - vPoint);
+		vec3 e = normalize(vPoint);
+		vec3 r = reflect(l, n);
+		float d = abs(dot(n, l));
+		float s = abs(dot(r, e));
+		float intensity = clamp(d+pow(s, 50), 0, 1);
+		pColor = vec4(intensity * texture(txtr, vUv).rgb, 1);
 	}
 )";
 
