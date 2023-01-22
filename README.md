@@ -2,7 +2,9 @@
 
 ## Drive
 
-https://user-images.githubusercontent.com/36770835/213939253-0c2e6390-3717-49d9-ace6-b095a49abb61.mp4
+A simple driving simulation, uses shadow mapping to render directional lighting over the scene and selectively renders trees and grass using frustum culling to cull mesh renders before sending to GPU. 
+
+https://user-images.githubusercontent.com/36770835/213939357-5dec082e-603b-4f42-8441-63b98f7cdf07.mp4
 
 ## Boids-3D
 
